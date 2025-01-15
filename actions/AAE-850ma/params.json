@@ -1,0 +1,46 @@
+{
+    "category": "plugins",
+    "display": "Translation",
+    "fields": {
+        "AAF": {
+            "caption": "Language",
+            "default_val": "fr",
+            "doc": "Language to display. Must be in ISO 639 2-letter format (eg: 'en', 'fr')",
+            "editor": "DynamicValue",
+            "name": "language",
+            "rank": 0,
+            "value": "text"
+        },
+        "AAG": {
+            "caption": "Fallback Language",
+            "default_val": "fr",
+            "doc": "Fallback language if there is no value for the language selected. Must be in ISO 639 2-letter format (eg: 'en', 'fr')",
+            "editor": "StaticText",
+            "name": "fallback_language",
+            "rank": 1
+        },
+        "AAH": {
+            "caption": "Values",
+            "doc": "List of keys/values, keys must be ISO 639 2-letters format.",
+            "editor": "key_value_list",
+            "name": "values",
+            "rank": 2,
+            "value": "text"
+        }
+    },
+    "return_value": {
+        "AAI": {
+            "caption": "Text",
+            "name": "text",
+            "rank": 0,
+            "value": "text"
+        },
+        "AAJ": {
+            "caption": "Language",
+            "name": "language",
+            "rank": 1,
+            "value": "text"
+        }
+    },
+    "type": "client_side"
+}

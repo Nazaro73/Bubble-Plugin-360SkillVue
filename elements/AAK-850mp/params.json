@@ -1,0 +1,49 @@
+{
+    "add_is_visible": true,
+    "category": "input forms",
+    "default_dim": {
+        "height": 30,
+        "width": 100
+    },
+    "display": "Language Selector",
+    "events": {
+        "AAO": {
+            "caption": "Language Changed",
+            "name": "language_changed"
+        }
+    },
+    "fields": {
+        "AAL": {
+            "caption": "Default value",
+            "editor": "StaticText",
+            "name": "default_value",
+            "optional": true,
+            "rank": 0
+        },
+        "AAM": {
+            "caption": "Available languages",
+            "editor": "DynamicValue",
+            "is_list": true,
+            "name": "available_languages",
+            "optional": true,
+            "rank": 1,
+            "value": "text"
+        }
+    },
+    "icon": "ion-ios-flag",
+    "platform_type": "web",
+    "property_applications": {
+        "MinWidth": true,
+        "resizable": true
+    },
+    "states": {
+        "AAN": {
+            "caption": "Selected Language",
+            "initialization_code": {
+                "fn": "function(properties, context) {\n\treturn ''\n}"
+            },
+            "name": "selected_language",
+            "value": "text"
+        }
+    }
+}
