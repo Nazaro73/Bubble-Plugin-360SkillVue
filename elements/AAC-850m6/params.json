@@ -8,7 +8,7 @@
         "width": 400
     },
     "display": "Video Player",
-    "icon": "ion-android-checkbox-blank",
+    "icon": "ion-videocamera",
     "platform_type": "web",
     "property_applications": {
         "MinWidth": true,
