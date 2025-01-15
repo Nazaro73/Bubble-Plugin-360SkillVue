@@ -8,6 +8,16 @@
         "width": 400
     },
     "display": "Video Player",
+    "fields": {
+        "AAD": {
+            "caption": "Video URL",
+            "editor": "DynamicValue",
+            "long_text": true,
+            "name": "video_url",
+            "rank": 0,
+            "value": "text"
+        }
+    },
     "icon": "ion-videocamera",
     "platform_type": "web",
     "property_applications": {
