@@ -1,0 +1,54 @@
+{
+    "add_is_visible": true,
+    "category": "visual elements",
+    "default_dim": {
+        "height": 0,
+        "width": 0
+    },
+    "display": "Translation Loader",
+    "fields": {
+        "AAY": {
+            "caption": "Langue",
+            "default_val": "fr",
+            "doc": "Langue d'affichage",
+            "editor": "StaticText",
+            "name": "language",
+            "rank": 0
+        },
+        "AAZ": {
+            "caption": "Traductions",
+            "doc": "Liste de Traductions",
+            "editor": "DynamicValue",
+            "is_list": true,
+            "name": "translations",
+            "rank": 2,
+            "value": "_any_thing_bindable"
+        },
+        "AAa": {
+            "caption": "Langue de repli",
+            "default_val": "fr",
+            "doc": "Langue à utiliser si aucune traduction existe",
+            "editor": "StaticText",
+            "name": "fallbackLang",
+            "optional": false,
+            "rank": 1
+        }
+    },
+    "icon": "ion-android-checkbox-blank",
+    "platform_type": "web",
+    "property_applications": {
+        "MinWidth": false,
+        "resizable": false
+    },
+    "states": {
+        "AAX": {
+            "caption": "Texte",
+            "doc": "Texte traduit",
+            "initialization_code": {
+                "fn": "function(properties, context) {\n\n\treturn ''\n\n}"
+            },
+            "name": "text",
+            "value": "text"
+        }
+    }
+}

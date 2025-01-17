@@ -1,7 +1,7 @@
 function(instance, properties) {
 	const elemId = 'language-' + crypto.randomUUID()
     
-    $(instance.canvas).append(`<select id="${elemId}"></select>`)
+    $(instance.canvas).append(`<select id="${elemId}"><option>Select a language</option></select>`)
 
 	instance.data.select = new SlimSelect({
         select: `#${elemId}`,

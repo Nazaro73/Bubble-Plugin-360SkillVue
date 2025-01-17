@@ -1,0 +1,37 @@
+{
+    "add_is_visible": true,
+    "category": "visual elements",
+    "default_dim": {
+        "height": 0,
+        "width": 0
+    },
+    "display": "Code to Language Name",
+    "fields": {
+        "AAT": {
+            "caption": "Language Code",
+            "default_val": "fr",
+            "editor": "StaticText",
+            "name": "langCode",
+            "rank": 0
+        },
+        "AAU": {
+            "caption": "User Language",
+            "default_val": "fr",
+            "editor": "StaticText",
+            "name": "language",
+            "rank": 1
+        }
+    },
+    "icon": "ion-android-checkbox-blank",
+    "platform_type": "web",
+    "states": {
+        "AAV": {
+            "caption": "Text",
+            "initialization_code": {
+                "fn": "function(properties, context) {\n\n\treturn ''\n\n}"
+            },
+            "name": "text",
+            "value": "text"
+        }
+    }
+}

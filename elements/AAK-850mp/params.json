@@ -3,7 +3,7 @@
     "category": "input forms",
     "default_dim": {
         "height": 30,
-        "width": 100
+        "width": 130
     },
     "display": "Language Selector",
     "events": {

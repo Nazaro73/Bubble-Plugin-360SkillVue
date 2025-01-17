@@ -1,0 +1,21 @@
+{
+    "category": "plugins",
+    "display": "Get Language from code",
+    "fields": {
+        "AAQ": {
+            "caption": "Language Code",
+            "default_val": "fr",
+            "editor": "StaticText",
+            "name": "langCode",
+            "rank": 0
+        },
+        "AAR": {
+            "caption": "User Language",
+            "default_val": "fr",
+            "editor": "StaticText",
+            "name": "language",
+            "rank": 1
+        }
+    },
+    "type": "client_side"
+}

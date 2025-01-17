@@ -1,65 +1,55 @@
 function(instance, context) {
-	const elemId = 'language-' + crypto.randomUUID()
-
-	console.log(elemId)
+    const elemId = 'language-' + crypto.randomUUID();
     
-    $(instance.canvas).append(`<select id="${elemId}"></select>`)
+    // Append the dropdown to the instance canvas
+    $(instance.canvas).append(`<select id="${elemId}"></select>`);
     
+    // Helper function to get browser locales
     function getBrowserLocales(options = {}) {
-      const defaultOptions = {
-        languageCodeOnly: false,
-      };
-      const opt = {
-        ...defaultOptions,
-        ...options,
-      };
-      const browserLocales =
-        navigator.languages === undefined
-          ? [navigator.language]
-          : navigator.languages;
-      if (!browserLocales) {
-        return undefined;
-      }
-      const locales = browserLocales.map(locale => {
-        const trimmedLocale = locale.trim();
-        return opt.languageCodeOnly
-          ? trimmedLocale.split(/-|_/)[0]
-          : trimmedLocale;
-      });
-        
-      return [...new Set(locales)]
+        const defaultOptions = { languageCodeOnly: false };
+        const opt = { ...defaultOptions, ...options };
+        const browserLocales = navigator.languages || [navigator.language];
+        if (!browserLocales) return undefined;
+        return [...new Set(browserLocales.map(locale => {
+            const trimmedLocale = locale.trim();
+            return opt.languageCodeOnly ? trimmedLocale.split(/-|_/)[0] : trimmedLocale;
+        }))];
     }
     
-    const browserLocales = getBrowserLocales({languageCodeOnly: true})
+    // Get the current language of the browser
+    const browserLocales = getBrowserLocales({ languageCodeOnly: true });
+    const currLang = browserLocales[0] || 'en';
     
-    const currLang = browserLocales[0] || 'en'
-    
-    console.log(browserLocales, currLang)
-
+    // Get the language list
     const languageNames = new Intl.DisplayNames([currLang], {
-      type: 'language',
-      languageDisplay: 'standard'
+        type: 'language',
+        languageDisplay: 'standard'
     });
-    const languageCodes = ISO6391.getAllCodes()
+    const languageCodes = ISO6391.getAllCodes();
     const languageList = languageCodes.map(code => {
-        let lang = languageNames.of(code)
-        if (lang === code) { return null }
-        let item = { text: String(lang).charAt(0).toUpperCase() + String(lang).slice(1), value: code }
-        return item
-    }).filter(Boolean)
-    
-    console.log(languageList)
+        const lang = languageNames.of(code);
+        if (lang === code) return null;
+        return { text: `${lang.charAt(0).toUpperCase()}${lang.slice(1)}`, value: code };
+    }).filter(Boolean);
 
-    instance.data.languageList = languageList
+    // Store the language list in instance data
+    instance.data.languageList = languageList;
+
+    // Initialize SlimSelect
     instance.data.select = new SlimSelect({
         select: `#${elemId}`,
         placeholder: 'Select a language',
         data: languageList,
         events: {
-        	afterChange: (value) => {
-                instance.publishState('selected_language', value.value)
-            	instance.triggerEvent('language_changed')
+            afterChange: (values) => {
+                if (values.length > 0) {
+                    // Publish the selected language as a state
+                    instance.publishState('selected_language', values[0].value);
+                    
+                    // Trigger the custom event
+                    instance.triggerEvent('language_changed');
+                }
             }
         }
-    })
+    });
 }
