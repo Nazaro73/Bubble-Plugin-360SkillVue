@@ -34,13 +34,6 @@
             "optional": false,
             "rank": 1,
             "value": "text"
-        },
-        "AAb": {
-            "caption": "test",
-            "editor": "DynamicValue",
-            "name": "test",
-            "rank": 3,
-            "value": "_any_thing_bindable"
         }
     },
     "icon": "ion-shuffle",

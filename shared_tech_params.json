@@ -1,4 +1,14 @@
 {
+    "assets": {
+        "AAg": {
+            "name": "video-recorder.js",
+            "url": "//meta-q.cdn.bubble.io/f1737095037633x955944885056282900/video-recorder.js"
+        },
+        "AAh": {
+            "name": "video-recorder.css",
+            "url": "//meta-q.cdn.bubble.io/f1737095057004x993656507259219300/video-recorder.css"
+        }
+    },
     "dependencies": {
         "plugin_api_version": 4,
         "use_jquery": true

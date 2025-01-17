@@ -15,6 +15,13 @@
             "name": "user",
             "rank": 0,
             "value": "user"
+        },
+        "AAi": {
+            "caption": "test",
+            "editor": "DynamicValue",
+            "name": "test",
+            "rank": 1,
+            "value": "file"
         }
     },
     "icon": "ion-videocamera",
