@@ -11,9 +11,10 @@
             "caption": "Langue",
             "default_val": "fr",
             "doc": "Langue d'affichage",
-            "editor": "StaticText",
+            "editor": "DynamicValue",
             "name": "language",
-            "rank": 0
+            "rank": 0,
+            "value": "text"
         },
         "AAZ": {
             "caption": "Traductions",
@@ -22,19 +23,27 @@
             "is_list": true,
             "name": "translations",
             "rank": 2,
-            "value": "_any_thing_bindable"
+            "value": "_any_thing"
         },
         "AAa": {
             "caption": "Langue de repli",
             "default_val": "fr",
             "doc": "Langue à utiliser si aucune traduction existe",
-            "editor": "StaticText",
+            "editor": "DynamicValue",
             "name": "fallbackLang",
             "optional": false,
-            "rank": 1
+            "rank": 1,
+            "value": "text"
+        },
+        "AAb": {
+            "caption": "test",
+            "editor": "DynamicValue",
+            "name": "test",
+            "rank": 3,
+            "value": "_any_thing_bindable"
         }
     },
-    "icon": "ion-android-checkbox-blank",
+    "icon": "ion-shuffle",
     "platform_type": "web",
     "property_applications": {
         "MinWidth": false,

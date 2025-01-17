@@ -8,25 +8,26 @@
     "display": "Code to Language Name",
     "fields": {
         "AAT": {
-            "caption": "Language Code",
-            "default_val": "fr",
-            "editor": "StaticText",
+            "caption": "Code Langue",
+            "editor": "DynamicValue",
             "name": "langCode",
-            "rank": 0
+            "rank": 0,
+            "value": "text"
         },
         "AAU": {
-            "caption": "User Language",
+            "caption": "Langue Utilisateur",
             "default_val": "fr",
-            "editor": "StaticText",
+            "editor": "DynamicValue",
             "name": "language",
-            "rank": 1
+            "rank": 1,
+            "value": "text"
         }
     },
-    "icon": "ion-android-checkbox-blank",
+    "icon": "ion-ios-flag-outline",
     "platform_type": "web",
     "states": {
         "AAV": {
-            "caption": "Text",
+            "caption": "Texte",
             "initialization_code": {
                 "fn": "function(properties, context) {\n\n\treturn ''\n\n}"
             },
