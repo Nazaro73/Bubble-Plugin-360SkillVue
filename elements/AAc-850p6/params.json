@@ -1,5 +1,7 @@
 {
     "add_is_visible": true,
+    "add_large_file_upload_properties": true,
+    "autobinding_value": "file",
     "can_fit_height": true,
     "can_fit_width": true,
     "category": "input forms",
@@ -8,20 +10,26 @@
         "width": 400
     },
     "display": "Video Recorder",
+    "events": {
+        "AAp": {
+            "caption": "uploadedVideo",
+            "name": "uploadedVideo"
+        }
+    },
     "fields": {
-        "AAd": {
-            "caption": "User",
+        "AAn": {
+            "caption": "Vidéo",
             "editor": "DynamicValue",
-            "name": "user",
+            "name": "videoThing",
             "rank": 0,
-            "value": "user"
+            "value": "_any_thing"
         },
-        "AAi": {
-            "caption": "test",
+        "AAo": {
+            "caption": "Champ fichier",
             "editor": "DynamicValue",
-            "name": "test",
+            "name": "videoThingFieldName",
             "rank": 1,
-            "value": "file"
+            "value": "text"
         }
     },
     "icon": "ion-videocamera",
@@ -31,14 +39,6 @@
         "resizable": true
     },
     "states": {
-        "AAe": {
-            "caption": "Video Local URL",
-            "initialization_code": {
-                "fn": "function(properties, context) {\n\n\n\n}"
-            },
-            "name": "blobUrl",
-            "value": "text"
-        },
         "AAf": {
             "caption": "videoFile",
             "initialization_code": {
@@ -47,5 +47,6 @@
             "name": "videofile",
             "value": "file"
         }
-    }
+    },
+    "support_autobinding": true
 }

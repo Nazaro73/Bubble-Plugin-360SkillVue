@@ -9,7 +9,7 @@ function(instance, properties, context) {
 
 	const updatedLangs = instance.data.languageList.filter(l => {
 		// If availableLanguages is not empty, we check if lang is part of the list
-		if (availableLanguages?.length > 0) {
+		if (availableLanguages.length > 0) {
 			const foundAvailableLang = availableLanguages.find(al => al === l.value)
 			
 			// Filter language if not present in the availableLanguages

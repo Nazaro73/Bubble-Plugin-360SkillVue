@@ -2,7 +2,7 @@ function(instance, context) {
 	
 	const elemId = crypto.randomUUID()
     
-    $(instance.canvas).append(`<div id="${elemId}"></div>`)
+    $(instance.canvas).append(`<div id="${elemId}" style="height: 100%;"></div>`)
     
-    window.plugin360SkillVueVideoRecord.init()
+    instance.data.elemId = elemId
 }
