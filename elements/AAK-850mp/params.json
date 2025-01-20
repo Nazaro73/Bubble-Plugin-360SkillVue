@@ -15,10 +15,11 @@
     "fields": {
         "AAL": {
             "caption": "Default value",
-            "editor": "StaticText",
+            "editor": "DynamicValue",
             "name": "default_value",
             "optional": true,
-            "rank": 0
+            "rank": 0,
+            "value": "text"
         },
         "AAM": {
             "caption": "Available languages",
@@ -27,6 +28,15 @@
             "name": "available_languages",
             "optional": true,
             "rank": 1,
+            "value": "text"
+        },
+        "AAl": {
+            "caption": "Filter Languages",
+            "editor": "DynamicValue",
+            "is_list": true,
+            "name": "filter_languages",
+            "optional": true,
+            "rank": 2,
             "value": "text"
         }
     },
