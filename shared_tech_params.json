@@ -1,12 +1,12 @@
 {
     "assets": {
-        "AAg": {
+        "AAj": {
             "name": "video-recorder.js",
-            "url": "//meta-q.cdn.bubble.io/f1737095037633x955944885056282900/video-recorder.js"
+            "url": "//meta-q.cdn.bubble.io/f1737131210629x437885765005780350/video-recorder.js"
         },
-        "AAh": {
+        "AAk": {
             "name": "video-recorder.css",
-            "url": "//meta-q.cdn.bubble.io/f1737095057004x993656507259219300/video-recorder.css"
+            "url": "//meta-q.cdn.bubble.io/f1737131234301x520720394076450400/video-recorder.css"
         }
     },
     "dependencies": {
