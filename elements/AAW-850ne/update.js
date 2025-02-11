@@ -9,11 +9,11 @@ function(instance, properties, context) {
                 Texte: t.get('texte_text')   // Access the "Texte" field
             }));
 
-        console.log(translations); // Debugging output
+        // console.log(translations); // Debugging output
         instance.data.translations = translations; // Store for later use
     }
     
-    console.log(translations, properties.translations)
+    // console.log(translations, properties.translations)
 
 	const lang = properties.language
     const fallbackLang = properties.fallbackLang || 'fr'
@@ -24,7 +24,7 @@ function(instance, properties, context) {
 
     const text = requestedTranslation?.Texte || fallbackTranslation?.Texte || fallbackFirstTranslation?.Texte || ''
     
-    console.log(text)
+    // console.log(text)
     
 	instance.publishState('text', text)
 }

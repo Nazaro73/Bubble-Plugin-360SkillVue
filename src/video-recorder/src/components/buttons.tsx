@@ -48,7 +48,7 @@ export const UploadButton = ({
     const file = e.target.files?.[0];
     if (!file) return;
     onUpload?.(file);
-    console.log(file);
+    // console.log(file);
   };
   return (
     <label
