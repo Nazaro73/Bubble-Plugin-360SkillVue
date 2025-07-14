@@ -6,6 +6,7 @@ import {
   StopIcon,
   VideoCameraIcon,
 } from "@heroicons/react/20/solid";
+import useIsIos from "./isIos";
 
 interface ButtonProps {
   onClick: () => void;
@@ -50,14 +51,21 @@ export const UploadButton = ({
     onUpload?.(file);
     // console.log(file);
   };
+
+  const isIos = useIsIos();
+
   return (
     <label
       className={`inline-flex items-center gap-x-2 rounded-md bg-blue-700 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 ${
         uploading ? "opacity-50" : ""
       }`}
     >
-      <CloudArrowUpIcon aria-hidden="true" className="-ml-0.5 size-5" />
-      Upload video
+      {isIos ? (
+        <VideoCameraIcon aria-hidden="true" className="-ml-0.5 size-5" />
+      ) : (
+        <CloudArrowUpIcon aria-hidden="true" className="-ml-0.5 size-5" />
+      )}
+      {isIos ? "Record or upload video" : "Upload video"}
       <input
         type="file"
         className="hidden"

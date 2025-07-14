@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:watch": "vite build --watch",
+    "serve": "serve dist/",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -14,6 +16,7 @@
     "@heroicons/react": "^2.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "ua-parser-js": "^2.0.3",
     "videojs-record": "^4.8.0"
   },
   "devDependencies": {
@@ -29,9 +32,11 @@
     "eslint-plugin-react-refresh": "^0.4.16",
     "globals": "^15.14.0",
     "postcss": "^8.5.1",
+    "serve": "^14.2.4",
     "tailwindcss": "^3.4.17",
     "typescript": "~5.6.2",
     "typescript-eslint": "^8.18.2",
     "vite": "^6.0.5"
-  }
+  },
+  "packageManager": "yarn@4.9.1+sha256.6ffc213b3ce0af5c92507977d9537ea3cc085caa52d1c3f08e94d613407fed19"
 }

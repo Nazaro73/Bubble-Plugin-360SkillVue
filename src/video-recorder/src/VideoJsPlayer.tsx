@@ -19,6 +19,7 @@ import Wavesurfer from 'videojs-wavesurfer/dist/videojs.wavesurfer.js';
 // register videojs-record plugin with this import
 import "videojs-record/dist/css/videojs.record.css";
 import "videojs-record/dist/videojs.record.js";
+import "videojs-record/dist/plugins/videojs.record.ts-ebml.js";
 import { VideoJsRecorderPlayer } from "./videojs-recorder.interface";
 
 interface VideoJsPlayerProps {
@@ -44,9 +45,17 @@ export const VideoJSComponent = (props: VideoJsPlayerProps) => {
       }
       videoRef.current.appendChild(videoElement);
 
-      const player = videojs(videoElement, options, () => {
-        if (onReady) onReady(player as VideoJsRecorderPlayer);
-      });
+      const player = videojs(
+        videoElement,
+        {
+          ...options,
+          playsinline: true,
+          playsInline: true,
+        },
+        () => {
+          if (onReady) onReady(player as VideoJsRecorderPlayer);
+        }
+      );
 
       playerRef.current = player as VideoJsRecorderPlayer;
       // You could update an existing player in the `else` block here

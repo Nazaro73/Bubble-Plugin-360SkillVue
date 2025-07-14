@@ -16,6 +16,7 @@ import {
   BubblePluginProperties,
   BubbleThing,
 } from "./bubble.interface";
+import useIsIos from "./components/isIos";
 
 interface AppProps {
   id: string;
@@ -39,6 +40,8 @@ function App({ instance, properties }: AppProps) {
           height: { ideal: 1080 },
         },
 
+        convertEngine: "ts-ebml",
+        videoMimeType: "video/webm;codecs=vp8",
         debug: true,
         frameWidth: 1280,
         frameHeight: 720,
@@ -272,12 +275,19 @@ function App({ instance, properties }: AppProps) {
     [instance, videoThing]
   );
 
+  const isIos = useIsIos();
+
   return (
     <div className="App flex flex-col w-full h-full p-2">
       {!mode && (
         <div className="flex flex-col justify-center align-middle m-auto gap-2">
-          <OpenCameraButton onClick={initPlayer}></OpenCameraButton>
-          <span className="text-center">or</span>
+          {/** Hide the direct recording option due to iOS limitations */}
+          {!isIos && (
+            <>
+              <OpenCameraButton onClick={initPlayer}></OpenCameraButton>
+              <span className="text-center">or</span>
+            </>
+          )}
           <UploadButton
             onUpload={handleManualUpload}
             uploading={uploading}
@@ -289,6 +299,7 @@ function App({ instance, properties }: AppProps) {
           src={uploadedUrl}
           controls
           className="object-contain w-full h-full"
+          playsInline
         />
       )}
       <VideoJSComponent
@@ -315,8 +326,12 @@ function App({ instance, properties }: AppProps) {
           )}
           {mode === "upload" && (
             <div className="flex flex-row justify-center align-middle m-auto gap-4">
-              <OpenCameraButton onClick={initPlayer}></OpenCameraButton>
-              <span className="text-center content-center">or</span>
+              {!isIos && (
+                <>
+                  <OpenCameraButton onClick={initPlayer}></OpenCameraButton>
+                  <span className="text-center content-center">or</span>
+                </>
+              )}
               <UploadButton
                 onUpload={handleManualUpload}
                 uploading={uploading}

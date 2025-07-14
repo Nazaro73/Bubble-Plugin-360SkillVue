@@ -1,50 +1,47 @@
-# React + TypeScript + Vite
+# Video Recorder plugin pour Bubble
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Developpement
 
-Currently, two official plugins are available:
+### Prerequis
+- Node.js 22
+- yarn (via corepack `corepack enable`)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
-
-- Configure the top-level `parserOptions` property like this:
-
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+### Installation
+```bash
+yarn install
 ```
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
+### Lancer le projet
 
-```js
-// eslint.config.js
-import react from 'eslint-plugin-react'
+Dans un terminal, lancez la commande suivante pour démarrer la compilation en mode développement :
+```bash
+yarn build --watch
+```
 
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: '18.3' } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
-  },
-})
+Dans un autre terminal, lancez la commande suivante pour démarrer le serveur de développement :
+```bash
+yarn serve
+```
+
+Dans Bubble, aller sur le plugin "360SkillVue" dans la partie "Shared" et dans la parte "HTML Header" remplacer les lignes "meta-q.cdn.bubble.io" par les suivantes :
+```html
+<script type="module" src="//localhost:3000/video-recorder.js"></script>
+<link rel="stylesheet" href="//localhost:3000/video-recorder.css">
+```
+Cela permet de charger le plugin depuis le serveur de développement en local pour les tests.
+
+### Build pour la production
+
+Pour créer une version de production du plugin, exécutez la commande suivante :
+```bash
+yarn build
+```
+
+Puis transférez les fichiers générés dans le dossier `dist` dans le plugin Bubble, dans la partie "Shared" > "Shared assets and resources".
+
+Enfin, copier les liens générés pour les deux fichiers `video-recorder.js` et `video-recorder.css` dans la partie "HTML Header" du plugin Bubble.
+```html
+<script type="module" src="//meta-q.cdn.bubble.io/*ID Bubble*/video-recorder.js"></script>
+<link rel="stylesheet" href="//meta-q.cdn.bubble.io/*ID Bubble*/video-recorder.css">
 ```
