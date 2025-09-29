@@ -7,6 +7,7 @@ import {
   VideoCameraIcon,
   EyeSlashIcon,
   EyeIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/20/solid";
 import useIsIos from "./isIos";
 
@@ -156,6 +157,30 @@ export const BlurToggleButton = ({
         <EyeIcon aria-hidden="true" className="size-4" />
       )}
       <span>{isEnabled ? "Blur ON" : "Blur OFF"}</span>
+    </button>
+  );
+};
+
+export const SwapCameraButton = ({
+  onClick,
+  disabled = false,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+}) => {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      type="button"
+      className={`rounded-full p-3 text-white shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-all duration-200 ${
+        disabled
+          ? "bg-gray-400 cursor-not-allowed"
+          : "bg-gray-600 hover:bg-gray-500 focus-visible:outline-gray-600 hover:shadow-xl hover:scale-105"
+      }`}
+      title="Swap Camera"
+    >
+      <ArrowPathIcon aria-hidden="true" className="size-6" />
     </button>
   );
 };

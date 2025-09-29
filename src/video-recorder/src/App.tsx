@@ -8,6 +8,7 @@ import {
   PlayButton,
   RecordButton,
   UploadButton,
+  SwapCameraButton,
 } from "./components/buttons";
 import { DeviceSelector, OptionsDisclosure } from "./components/options";
 import { BlurControls } from "./components/BlurControls";
@@ -114,21 +115,27 @@ function App({ instance, properties }: AppProps) {
           ? {
               width: { ideal: 1280, max: 1920 },
               height: { ideal: 720, max: 1080 },
-              frameRate: { ideal: 24, max: 30 }
+              frameRate: { ideal: 30, max: 30 },
+              facingMode: "user" // Force camera frontale par défaut sur iOS
             }
           : {
               width: { ideal: 1920 },
               height: { ideal: 1080 },
             },
-        convertEngine: "ts-ebml",
+        convertEngine: isIos ? "MediaRecorder" : "ts-ebml", // MediaRecorder pour iOS
         videoMimeType: isIos
           ? "video/mp4" // iOS préfère MP4
           : "video/webm;codecs=vp8",
         debug: true,
         frameWidth: isIos ? 1280 : 1280,
         frameHeight: isIos ? 720 : 720,
-        frameRate: isIos ? 24 : 30,
+        frameRate: isIos ? 30 : 30, // 30fps pour iOS aussi
         maxLength: 10 * 60, // 10 minutes
+        // Options spécifiques pour iOS Safari
+        ...(isIos && {
+          timeSlice: 1000, // Découper en tranches pour iOS
+          videoBitsPerSecond: 2500000, // Limiter le bitrate
+        })
       },
     },
   };
@@ -136,6 +143,7 @@ function App({ instance, properties }: AppProps) {
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [playerReady, setPlayerReady] = useState(false);
+  const [currentVideoDeviceIndex, setCurrentVideoDeviceIndex] = useState(0);
 
   const [mode, setMode] = useState<"record" | "upload" | undefined>();
 
@@ -253,8 +261,19 @@ function App({ instance, properties }: AppProps) {
       // Message spécifique pour iOS Safari
       if (isIos) {
         console.warn('Camera access failed on iOS - this may be due to browser restrictions');
-        // Optionnel: revenir au mode upload automatiquement
-        // setMode("upload");
+        console.warn('Potential solutions: 1) Allow camera access when prompted, 2) Check iOS Settings > Safari > Camera, 3) Try refresh page');
+
+        // Essayer de redémarrer automatiquement après une erreur
+        setTimeout(() => {
+          if (playerRef.current && !recording) {
+            console.log('Attempting automatic camera restart on iOS...');
+            try {
+              playerRef.current.record().getDevice();
+            } catch (retryError) {
+              console.error('Auto-restart failed:', retryError);
+            }
+          }
+        }, 2000);
       }
     });
   }, []);
@@ -320,6 +339,64 @@ function App({ instance, properties }: AppProps) {
       console.error('Error changing audio device:', e);
     }
   };
+
+  // Fonction pour swap camera (front/back)
+  const swapCamera = useCallback(async () => {
+    if (!playerRef.current || recording || videoDevices.length < 2) return;
+
+    console.log('Swapping camera...');
+    setIsRestarting(true);
+
+    try {
+      // Calculer l'index de la prochaine caméra
+      const nextIndex = (currentVideoDeviceIndex + 1) % videoDevices.length;
+      const nextDevice = videoDevices[nextIndex];
+
+      console.log('Switching to device:', nextDevice.label, 'Index:', nextIndex);
+
+      // Arrêter l'enregistrement actuel s'il y en a un
+      if (playerRef.current.record().isRecording()) {
+        playerRef.current.record().stop();
+      }
+
+      // Arrêter le traitement de blur actuel
+      stopProcessing();
+
+      // Attendre que l'arrêt soit effectif
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Sur iOS, utiliser facingMode plutôt que deviceId quand possible
+      if (isIos) {
+        // Déterminer si c'est front ou back camera
+        const isFrontCamera = nextDevice.label.toLowerCase().includes('front') ||
+                             nextDevice.label.toLowerCase().includes('user') ||
+                             nextDevice.label.toLowerCase().includes('face');
+
+        const facingMode = isFrontCamera ? 'user' : 'environment';
+
+        console.log('iOS: Using facingMode:', facingMode, 'for device:', nextDevice.label);
+
+        // Forcer un redémarrage complet de la caméra sur iOS
+        playerRef.current.record().stop();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Redémarrer avec les nouvelles contraintes
+        playerRef.current.record().getDevice();
+      } else {
+        // Sur autres plateformes, utiliser setVideoInput
+        playerRef.current.record().setVideoInput(nextDevice.deviceId);
+      }
+
+      // Mettre à jour l'index
+      setCurrentVideoDeviceIndex(nextIndex);
+
+      console.log('Camera swapped successfully to:', nextDevice.label);
+    } catch (error) {
+      console.error('Error swapping camera:', error);
+    } finally {
+      setIsRestarting(false);
+    }
+  }, [recording, videoDevices, currentVideoDeviceIndex, stopProcessing, isIos]);
 
   const handleUpload = useCallback(
     (file: Blob) => {
@@ -523,12 +600,17 @@ function App({ instance, properties }: AppProps) {
           {playerReady && mode === "record" && (
             <div className="flex flex-row w-full gap-4 justify-center items-center bg-white rounded-2xl p-6 shadow-xl border border-gray-100">
               <Button onClick={() => setMode(undefined)} />
-              
+
+              <SwapCameraButton
+                onClick={swapCamera}
+                disabled={recording || isRestarting || videoDevices.length < 2}
+              />
+
               <RecordButton
                 onClick={toggleRecording}
                 isRecording={recording}
               />
-              
+
               {canPlay && (
                 <PlayButton
                   onClick={togglePlayingVideojs}
@@ -617,6 +699,10 @@ function App({ instance, properties }: AppProps) {
         <p>Blur Intensity: {blurIntensity}px</p>
         <p>Can Play: {canPlay ? 'Yes' : 'No'}</p>
         <p>Is iOS: {isIos ? 'Yes' : 'No'}</p>
+        <p>Video Devices: {videoDevices.length}</p>
+        <p>Current Camera Index: {currentVideoDeviceIndex}</p>
+        <p>Current Camera: {videoDevices[currentVideoDeviceIndex]?.label || 'N/A'}</p>
+        <p>Swap Available: {videoDevices.length >= 2 ? 'Yes' : 'No'}</p>
         <p>Original getUserMedia saved: {(window as any).originalGetUserMedia ? 'Yes' : 'No'}</p>
         <p>Current getUserMedia intercepted: {navigator.mediaDevices.getUserMedia !== (window as any).originalGetUserMedia ? 'Yes' : 'No'}</p>
         <p>User Agent: {navigator.userAgent.substring(0, 50)}...</p>
