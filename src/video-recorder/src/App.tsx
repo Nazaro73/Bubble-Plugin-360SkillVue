@@ -44,11 +44,23 @@ function App({ instance, properties }: AppProps) {
     frameRate: 30,
   });
 
-  // Configuration de l'interception globale - seulement si le blur est utilisé
+  // Configuration de l'interception globale - DÉSACTIVÉE sur iOS pour debug
   useEffect(() => {
-    // Ne pas intercepter du tout si le blur n'est pas activé
+    // TEMPORAIRE: Pas d'interception sur iOS pour identifier le problème
+    if (isIos) {
+      console.log('🍎 iOS detected - SKIPPING blur interception for debugging');
+
+      // S'assurer que l'original est restauré sur iOS
+      if ((window as any).originalGetUserMedia) {
+        navigator.mediaDevices.getUserMedia = (window as any).originalGetUserMedia;
+        console.log('✅ iOS: Restored original getUserMedia (no interception)');
+      }
+
+      return;
+    }
+
+    // DESKTOP/ANDROID: Interception normale
     if (!isBlurEnabled) {
-      // S'assurer que l'original est restauré
       if ((window as any).originalGetUserMedia) {
         navigator.mediaDevices.getUserMedia = (window as any).originalGetUserMedia;
         console.log('Blur disabled - restored original getUserMedia');
@@ -62,49 +74,28 @@ function App({ instance, properties }: AppProps) {
       console.log('Original getUserMedia saved for blur processing');
     }
 
-    // Configurer l'interception avec le blur activé
+    // Configurer l'interception avec le blur activé (NON iOS)
     console.log('🎥 Setting up blur interception with intensity:', blurIntensity);
     navigator.mediaDevices.getUserMedia = async (constraints: MediaStreamConstraints) => {
       console.log('🔍 INTERCEPTED getUserMedia call with blur enabled!', constraints);
-      console.log('📱 iOS device, using special handling');
 
       try {
         const originalStream = await (window as any).originalGetUserMedia(constraints);
         console.log('✅ Got original stream:', {
           id: originalStream.id,
           videoTracks: originalStream.getVideoTracks().length,
-          audioTracks: originalStream.getAudioTracks().length,
-          videoSettings: originalStream.getVideoTracks()[0]?.getSettings()
+          audioTracks: originalStream.getAudioTracks().length
         });
-
-        // Vérifier que le stream est valide avant traitement
-        if (originalStream.getVideoTracks().length === 0) {
-          console.warn('⚠️ No video tracks in original stream');
-          return originalStream;
-        }
 
         // Essayer le traitement avec blur
         try {
-          console.log('🌀 Starting blur processing on iOS...');
-
-          // Attendre un petit délai pour que iOS initialise le stream
-          await new Promise(resolve => setTimeout(resolve, 500));
-
+          console.log('🌀 Starting blur processing...');
           const blurredStream = await processVideoStream(originalStream);
-
           console.log('✅ Blur processing completed successfully:', {
             id: blurredStream.id,
             videoTracks: blurredStream.getVideoTracks().length,
-            audioTracks: blurredStream.getAudioTracks().length,
-            videoSettings: blurredStream.getVideoTracks()[0]?.getSettings()
+            audioTracks: blurredStream.getAudioTracks().length
           });
-
-          // Vérifier que le stream blurré est valide
-          if (blurredStream.getVideoTracks().length === 0) {
-            console.warn('⚠️ Blurred stream has no video tracks, falling back');
-            return originalStream;
-          }
-
           return blurredStream;
         } catch (blurError) {
           console.error('❌ Blur processing failed, falling back to original stream:', blurError);
@@ -112,55 +103,52 @@ function App({ instance, properties }: AppProps) {
         }
       } catch (error) {
         console.error('❌ Error getting original stream:', error);
-        throw error; // Re-lancer l'erreur pour que VideoJS la gère
+        throw error;
       }
     };
 
     return () => {
-      // Cleanup: restaurer l'original si pas de blur
       if (!isBlurEnabled && (window as any).originalGetUserMedia) {
         navigator.mediaDevices.getUserMedia = (window as any).originalGetUserMedia;
       }
       stopProcessing();
     };
-  }, [isBlurEnabled, blurIntensity, processVideoStream, stopProcessing]);
+  }, [isBlurEnabled, blurIntensity, processVideoStream, stopProcessing, isIos]);
 
   const videoJsOptions = {
     controls: false,
     bigPlayButton: false,
     aspectRatio: "16:9",
     fluid: true,
+    // Attributs HTML5 critiques pour iOS
+    ...(isIos && {
+      autoplay: true,
+      muted: true,
+      playsInline: true,
+    }),
     plugins: {
       record: {
         audio: true,
         video: isIos
           ? {
-              width: { ideal: 1280, max: 1920 },
-              height: { ideal: 720, max: 1080 },
-              frameRate: { ideal: 30, max: 30 },
-              facingMode: "user" // Force camera frontale par défaut sur iOS
+              // Config minimale pour iOS Safari 2024
+              facingMode: "user", // Camera frontale par défaut
+              width: { ideal: 640, max: 1280 },
+              height: { ideal: 480, max: 720 }
             }
           : {
               width: { ideal: 1920 },
               height: { ideal: 1080 },
             },
-        convertEngine: isIos ? "MediaRecorder" : "ts-ebml", // MediaRecorder pour iOS
+        convertEngine: isIos ? "MediaRecorder" : "ts-ebml",
         videoMimeType: isIos
-          ? "video/mp4;codecs=h264" // iOS nécessite H.264 explicitement
+          ? "video/mp4" // Simplicité pour iOS, pas de codec explicite
           : "video/webm;codecs=vp8",
         debug: true,
-        frameWidth: isIos ? 1280 : 1280,
-        frameHeight: isIos ? 720 : 720,
-        frameRate: isIos ? 30 : 30, // 30fps pour iOS aussi
-        maxLength: 10 * 60, // 10 minutes
-        // Options spécifiques pour iOS Safari
-        ...(isIos && {
-          timeSlice: 1000, // Découper en tranches pour iOS
-          videoBitsPerSecond: 2500000, // Limiter le bitrate
-          autoplay: true, // Forcer autoplay
-          controls: false, // Pas de contrôles natifs
-          muted: true, // Mute par défaut pour iOS
-        })
+        frameWidth: isIos ? 640 : 1280,
+        frameHeight: isIos ? 480 : 720,
+        frameRate: isIos ? 30 : 30,
+        maxLength: 10 * 60
       },
     },
   };
@@ -326,79 +314,32 @@ function App({ instance, properties }: AppProps) {
     });
   }, []);
 
-  const initPlayer = async () => {
+  const initPlayer = () => {
     if (!playerRef.current) return;
 
-    console.log('Initializing player with blur settings:', { isBlurEnabled, blurIntensity });
-    console.log('Device info:', { isIos, userAgent: navigator.userAgent });
+    console.log('🎬 Initializing player - iOS:', isIos);
+    console.log('📱 User agent:', navigator.userAgent.substring(0, 80));
 
     // Vérification des APIs nécessaires
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      console.error('getUserMedia not supported');
+      console.error('❌ getUserMedia not supported');
       alert('Camera access not supported on this device/browser');
       return;
     }
 
-    // Sur iOS, faire une pré-demande d'autorisation caméra
+    // Test support WebRTC sur iOS
     if (isIos) {
-      console.log('🍎 iOS detected - requesting camera permission first...');
-
-      try {
-        // Demande d'autorisation préalable avec contraintes minimales
-        const testStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "user",
-            width: { ideal: 640 },
-            height: { ideal: 480 }
-          },
-          audio: false // Pas d'audio pour le test
-        });
-
-        console.log('✅ iOS camera permission granted, test stream:', {
-          id: testStream.id,
-          videoTracks: testStream.getVideoTracks().length
-        });
-
-        // Arrêter le stream de test
-        testStream.getTracks().forEach(track => {
-          track.stop();
-          console.log('🛑 Stopped test track:', track.id);
-        });
-
-        // Attendre un peu avant d'énumérer les devices
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-      } catch (permissionError) {
-        console.error('❌ iOS camera permission denied:', permissionError);
-        alert('📱 Accès caméra requis sur iOS. Autorisez la caméra dans Safari et rechargez la page.');
+      console.log('🍎 iOS Safari WebRTC check...');
+      if (!window.RTCPeerConnection) {
+        console.error('❌ WebRTC not supported on this iOS version');
+        alert('WebRTC not supported. Please update Safari/iOS.');
         return;
       }
-
-      // Vérifier les codecs supportés sur iOS
-      const testCodecs = ['video/mp4;codecs=h264', 'video/mp4', 'video/webm;codecs=vp8'];
-      const supportedCodecs = testCodecs.filter(codec => {
-        try {
-          return MediaRecorder.isTypeSupported(codec);
-        } catch (e) {
-          return false;
-        }
-      });
-
-      console.log('🎬 iOS codec support:', supportedCodecs);
-
-      if (supportedCodecs.length === 0) {
-        console.warn('⚠️ No supported video codecs found on iOS');
-      }
+      console.log('✅ WebRTC supported on iOS');
     }
 
+    console.log('🚀 Starting camera initialization...');
     setMode("record");
-
-    // Sur iOS, attendre un peu plus avant d'initialiser le recorder
-    if (isIos) {
-      console.log('🍎 iOS: Waiting before starting recorder...');
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-
     playerRef.current.record().getDevice();
   };
 
@@ -635,16 +576,15 @@ function App({ instance, properties }: AppProps) {
         <div className="flex flex-col justify-center items-center m-auto gap-6 p-8 bg-white rounded-2xl ">
 
           {isIos && (
-            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
-              <p className="text-sm text-blue-800 font-medium mb-1">📱 iOS/Safari User</p>
-              <p className="text-xs text-blue-600 mb-2">
-                Camera recording enabled! Make sure to:
+            <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg text-center">
+              <p className="text-sm text-orange-800 font-medium mb-1">🍎 iOS Safari - Simplified Mode</p>
+              <p className="text-xs text-orange-600 mb-2">
+                <strong>Note:</strong> Blur disabled on iOS for compatibility
               </p>
-              <ul className="text-xs text-blue-600 text-left space-y-1">
-                <li>• Allow camera access when prompted</li>
-                <li>• Check: iOS Settings {'>'} Safari {'>'} Camera = Allow</li>
-                <li>• Close other apps using camera</li>
-                <li>• If issues persist, use upload option below</li>
+              <ul className="text-xs text-orange-600 text-left space-y-1">
+                <li>• Camera should work normally without blur</li>
+                <li>• Allow camera access when Safari prompts you</li>
+                <li>• If camera fails, use upload option below</li>
               </ul>
             </div>
           )}
@@ -696,8 +636,8 @@ function App({ instance, properties }: AppProps) {
       </div>
 
       <div className="flex flex-col mt-6 gap-6">
-        {/* Contrôles de floutage - placés AVANT l'initialisation */}
-        {mode === undefined && (
+        {/* Contrôles de floutage - cachés sur iOS */}
+        {mode === undefined && !isIos && (
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-gray-800 mb-1">Video Effects</h3>
@@ -737,15 +677,15 @@ function App({ instance, properties }: AppProps) {
               )}
             </div>
           )}
-          
-          {/* Contrôles de floutage pendant l'enregistrement avec redémarrage automatique */}
-          {playerReady && mode === "record" && (
+
+          {/* Contrôles de floutage pendant l'enregistrement - cachés sur iOS */}
+          {playerReady && mode === "record" && !isIos && (
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-gray-800 mb-1">Video Effects</h3>
                 <p className="text-sm text-gray-600">
-                  {isRestarting 
-                    ? "Applying new settings..." 
+                  {isRestarting
+                    ? "Applying new settings..."
                     : "Camera will restart automatically when settings change"
                   }
                 </p>
@@ -821,8 +761,10 @@ function App({ instance, properties }: AppProps) {
         <p>Current Camera Index: {currentVideoDeviceIndex}</p>
         <p>Current Camera: {videoDevices[currentVideoDeviceIndex]?.label || 'N/A'}</p>
         <p>Swap Available: {videoDevices.length >= 2 ? 'Yes' : 'No'}</p>
+        <p>iOS Blur Interception: {isIos ? 'DISABLED (for compatibility)' : 'Enabled'}</p>
         <p>Original getUserMedia saved: {(window as any).originalGetUserMedia ? 'Yes' : 'No'}</p>
-        <p>Current getUserMedia intercepted: {navigator.mediaDevices.getUserMedia !== (window as any).originalGetUserMedia ? 'Yes' : 'No'}</p>
+        <p>Current getUserMedia intercepted: {isIos ? 'No (iOS)' : (navigator.mediaDevices.getUserMedia !== (window as any).originalGetUserMedia ? 'Yes' : 'No')}</p>
+        <p>WebRTC Support: {window.RTCPeerConnection ? 'Yes' : 'No'}</p>
         <p>User Agent: {navigator.userAgent.substring(0, 50)}...</p>
       </div>
     </div>
