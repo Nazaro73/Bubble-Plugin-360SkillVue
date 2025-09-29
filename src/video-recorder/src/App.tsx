@@ -285,25 +285,48 @@ function App({ instance, properties }: AppProps) {
 
       // Message spécifique pour iOS Safari
       if (isIos) {
-        console.warn('Camera access failed on iOS - this may be due to browser restrictions');
-        console.warn('Potential solutions: 1) Allow camera access when prompted, 2) Check iOS Settings > Safari > Camera, 3) Try refresh page');
+        console.error('❌ iOS Camera access failed - deviceErrorCode:', player.deviceErrorCode);
 
-        // Essayer de redémarrer automatiquement après une erreur
+        const errorMessages: Record<string, string> = {
+          'NotAllowedError': 'Permission caméra refusée. Autorisez dans Safari.',
+          'NotFoundError': 'Aucune caméra trouvée sur cet appareil.',
+          'NotReadableError': 'Caméra déjà utilisée par une autre app.',
+          'OverconstrainedError': 'Contraintes caméra incompatibles.',
+          'SecurityError': 'Accès caméra bloqué par politique de sécurité.',
+          'AbortError': 'Erreur inconnue d\'accès caméra.'
+        };
+
+        const errorCode = (player.deviceErrorCode as any)?.name || player.deviceErrorCode || 'unknown';
+        const errorMessage = errorMessages[errorCode] || `Erreur caméra: ${errorCode}`;
+
+        console.warn('📱 iOS Error Solutions:');
+        console.warn('1) Réglages iOS > Safari > Caméra = Autoriser');
+        console.warn('2) Fermer autres apps utilisant la caméra');
+        console.warn('3) Redémarrer Safari et accepter les permissions');
+
+        // Afficher une alerte utilisateur sur iOS
         setTimeout(() => {
-          if (playerRef.current && !recording) {
-            console.log('Attempting automatic camera restart on iOS...');
-            try {
-              playerRef.current.record().getDevice();
-            } catch (retryError) {
-              console.error('Auto-restart failed:', retryError);
+          alert(`📱 ${errorMessage}\n\nSolutions:\n• Réglages iOS > Safari > Caméra = Autoriser\n• Fermer autres apps caméra\n• Redémarrer Safari`);
+        }, 1000);
+
+        // Essayer de redémarrer automatiquement après une erreur seulement si pas de permission denied
+        if (errorCode !== 'NotAllowedError') {
+          setTimeout(async () => {
+            if (playerRef.current && !recording) {
+              console.log('🔄 Attempting iOS camera restart...');
+              try {
+                await initPlayer();
+              } catch (retryError) {
+                console.error('❌ iOS auto-restart failed:', retryError);
+              }
             }
-          }
-        }, 2000);
+          }, 3000);
+        }
       }
     });
   }, []);
 
-  const initPlayer = () => {
+  const initPlayer = async () => {
     if (!playerRef.current) return;
 
     console.log('Initializing player with blur settings:', { isBlurEnabled, blurIntensity });
@@ -316,8 +339,42 @@ function App({ instance, properties }: AppProps) {
       return;
     }
 
-    // Vérifier les codecs supportés sur iOS
+    // Sur iOS, faire une pré-demande d'autorisation caméra
     if (isIos) {
+      console.log('🍎 iOS detected - requesting camera permission first...');
+
+      try {
+        // Demande d'autorisation préalable avec contraintes minimales
+        const testStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "user",
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          },
+          audio: false // Pas d'audio pour le test
+        });
+
+        console.log('✅ iOS camera permission granted, test stream:', {
+          id: testStream.id,
+          videoTracks: testStream.getVideoTracks().length
+        });
+
+        // Arrêter le stream de test
+        testStream.getTracks().forEach(track => {
+          track.stop();
+          console.log('🛑 Stopped test track:', track.id);
+        });
+
+        // Attendre un peu avant d'énumérer les devices
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+      } catch (permissionError) {
+        console.error('❌ iOS camera permission denied:', permissionError);
+        alert('📱 Accès caméra requis sur iOS. Autorisez la caméra dans Safari et rechargez la page.');
+        return;
+      }
+
+      // Vérifier les codecs supportés sur iOS
       const testCodecs = ['video/mp4;codecs=h264', 'video/mp4', 'video/webm;codecs=vp8'];
       const supportedCodecs = testCodecs.filter(codec => {
         try {
@@ -327,14 +384,21 @@ function App({ instance, properties }: AppProps) {
         }
       });
 
-      console.log('iOS codec support:', supportedCodecs);
+      console.log('🎬 iOS codec support:', supportedCodecs);
 
       if (supportedCodecs.length === 0) {
-        console.warn('No supported video codecs found on iOS');
+        console.warn('⚠️ No supported video codecs found on iOS');
       }
     }
 
     setMode("record");
+
+    // Sur iOS, attendre un peu plus avant d'initialiser le recorder
+    if (isIos) {
+      console.log('🍎 iOS: Waiting before starting recorder...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
     playerRef.current.record().getDevice();
   };
 
@@ -573,9 +637,15 @@ function App({ instance, properties }: AppProps) {
           {isIos && (
             <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
               <p className="text-sm text-blue-800 font-medium mb-1">📱 iOS/Safari User</p>
-              <p className="text-xs text-blue-600">
-                Camera recording now enabled! If you experience issues, use the upload option below.
+              <p className="text-xs text-blue-600 mb-2">
+                Camera recording enabled! Make sure to:
               </p>
+              <ul className="text-xs text-blue-600 text-left space-y-1">
+                <li>• Allow camera access when prompted</li>
+                <li>• Check: iOS Settings {'>'} Safari {'>'} Camera = Allow</li>
+                <li>• Close other apps using camera</li>
+                <li>• If issues persist, use upload option below</li>
+              </ul>
             </div>
           )}
 
