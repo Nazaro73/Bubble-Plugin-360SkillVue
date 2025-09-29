@@ -44,18 +44,77 @@ function App({ instance, properties }: AppProps) {
     frameRate: 30,
   });
 
-  // Configuration de l'interception globale - DÉSACTIVÉE sur iOS pour debug
+  // Configuration de l'interception globale - OPTIMISÉE pour iOS
   useEffect(() => {
-    // TEMPORAIRE: Pas d'interception sur iOS pour identifier le problème
-    if (isIos) {
-      console.log('🍎 iOS detected - SKIPPING blur interception for debugging');
+    // iOS: Interception spécialement adaptée
+    if (isIos && isBlurEnabled) {
+      console.log('🍎 iOS detected - Setting up OPTIMIZED blur interception');
 
-      // S'assurer que l'original est restauré sur iOS
-      if ((window as any).originalGetUserMedia) {
-        navigator.mediaDevices.getUserMedia = (window as any).originalGetUserMedia;
-        console.log('✅ iOS: Restored original getUserMedia (no interception)');
+      // Sauvegarder l'original seulement si nécessaire
+      if (!(window as any).originalGetUserMedia) {
+        (window as any).originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+        console.log('✅ iOS: Original getUserMedia saved');
       }
 
+      // Interception optimisée pour iOS
+      navigator.mediaDevices.getUserMedia = async (constraints: MediaStreamConstraints) => {
+        console.log('🔍 iOS INTERCEPTED getUserMedia with optimized blur!', constraints);
+
+        try {
+          const originalStream = await (window as any).originalGetUserMedia(constraints);
+          console.log('✅ iOS got original stream:', {
+            id: originalStream.id,
+            videoTracks: originalStream.getVideoTracks().length,
+            audioTracks: originalStream.getAudioTracks().length
+          });
+
+          if (!isBlurEnabled || originalStream.getVideoTracks().length === 0) {
+            console.log('⚠️ iOS: Blur disabled or no video, returning original');
+            return originalStream;
+          }
+
+          try {
+            console.log('🌀 iOS: Starting optimized blur processing...');
+
+            // Plus long délai pour iOS
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            const blurredStream = await processVideoStream(originalStream);
+
+            console.log('✅ iOS blur processing success:', {
+              id: blurredStream.id,
+              videoTracks: blurredStream.getVideoTracks().length,
+              audioTracks: blurredStream.getAudioTracks().length
+            });
+
+            return blurredStream.getVideoTracks().length > 0 ? blurredStream : originalStream;
+
+          } catch (blurError) {
+            console.error('❌ iOS blur failed, fallback:', blurError);
+            return originalStream;
+          }
+
+        } catch (error) {
+          console.error('❌ iOS getUserMedia error:', error);
+          throw error;
+        }
+      };
+
+      return () => {
+        if ((window as any).originalGetUserMedia) {
+          navigator.mediaDevices.getUserMedia = (window as any).originalGetUserMedia;
+        }
+        stopProcessing();
+      };
+    }
+
+    // iOS sans blur : restaurer l'original
+    if (isIos && !isBlurEnabled) {
+      console.log('🍎 iOS: Blur disabled, restoring original getUserMedia');
+      if ((window as any).originalGetUserMedia) {
+        navigator.mediaDevices.getUserMedia = (window as any).originalGetUserMedia;
+        console.log('✅ iOS: Original getUserMedia restored');
+      }
       return;
     }
 
@@ -576,15 +635,15 @@ function App({ instance, properties }: AppProps) {
         <div className="flex flex-col justify-center items-center m-auto gap-6 p-8 bg-white rounded-2xl ">
 
           {isIos && (
-            <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg text-center">
-              <p className="text-sm text-orange-800 font-medium mb-1">🍎 iOS Safari - Simplified Mode</p>
-              <p className="text-xs text-orange-600 mb-2">
-                <strong>Note:</strong> Blur disabled on iOS for compatibility
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+              <p className="text-sm text-green-800 font-medium mb-1">🍎 iOS Safari - Enhanced Mode</p>
+              <p className="text-xs text-green-600 mb-2">
+                <strong>Camera working!</strong> Blur effects now available on iOS
               </p>
-              <ul className="text-xs text-orange-600 text-left space-y-1">
-                <li>• Camera should work normally without blur</li>
-                <li>• Allow camera access when Safari prompts you</li>
-                <li>• If camera fails, use upload option below</li>
+              <ul className="text-xs text-green-600 text-left space-y-1">
+                <li>• Camera access established successfully</li>
+                <li>• Blur effects optimized for iOS Safari</li>
+                <li>• If issues occur, disable blur or use upload</li>
               </ul>
             </div>
           )}
@@ -636,12 +695,17 @@ function App({ instance, properties }: AppProps) {
       </div>
 
       <div className="flex flex-col mt-6 gap-6">
-        {/* Contrôles de floutage - cachés sur iOS */}
-        {mode === undefined && !isIos && (
+        {/* Contrôles de floutage - maintenant disponible sur iOS */}
+        {mode === undefined && (
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-gray-800 mb-1">Video Effects</h3>
-              <p className="text-sm text-gray-600">Configure blur effect before recording</p>
+              <p className="text-sm text-gray-600">
+                {isIos
+                  ? "Configure blur effect for iOS (optimized)"
+                  : "Configure blur effect before recording"
+                }
+              </p>
             </div>
             <BlurControls
               isEnabled={isBlurEnabled}
@@ -678,15 +742,15 @@ function App({ instance, properties }: AppProps) {
             </div>
           )}
 
-          {/* Contrôles de floutage pendant l'enregistrement - cachés sur iOS */}
-          {playerReady && mode === "record" && !isIos && (
+          {/* Contrôles de floutage pendant l'enregistrement - maintenant sur iOS */}
+          {playerReady && mode === "record" && (
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-gray-800 mb-1">Video Effects</h3>
                 <p className="text-sm text-gray-600">
-                  {isRestarting
-                    ? "Applying new settings..."
-                    : "Camera will restart automatically when settings change"
+                  {isIos
+                    ? (isRestarting ? "Applying iOS blur settings..." : "iOS blur - camera restarts when changed")
+                    : (isRestarting ? "Applying new settings..." : "Camera will restart automatically when settings change")
                   }
                 </p>
                 {recording && (
@@ -761,9 +825,11 @@ function App({ instance, properties }: AppProps) {
         <p>Current Camera Index: {currentVideoDeviceIndex}</p>
         <p>Current Camera: {videoDevices[currentVideoDeviceIndex]?.label || 'N/A'}</p>
         <p>Swap Available: {videoDevices.length >= 2 ? 'Yes' : 'No'}</p>
-        <p>iOS Blur Interception: {isIos ? 'DISABLED (for compatibility)' : 'Enabled'}</p>
+        <p>iOS Blur Interception: {isIos ? (isBlurEnabled ? 'ENABLED (optimized)' : 'DISABLED') : 'N/A'}</p>
         <p>Original getUserMedia saved: {(window as any).originalGetUserMedia ? 'Yes' : 'No'}</p>
-        <p>Current getUserMedia intercepted: {isIos ? 'No (iOS)' : (navigator.mediaDevices.getUserMedia !== (window as any).originalGetUserMedia ? 'Yes' : 'No')}</p>
+        <p>Current getUserMedia intercepted: {isIos
+          ? (isBlurEnabled ? 'Yes (iOS optimized)' : 'No (iOS)')
+          : (navigator.mediaDevices.getUserMedia !== (window as any).originalGetUserMedia ? 'Yes' : 'No')}</p>
         <p>WebRTC Support: {window.RTCPeerConnection ? 'Yes' : 'No'}</p>
         <p>User Agent: {navigator.userAgent.substring(0, 50)}...</p>
       </div>

@@ -60,9 +60,16 @@ export const useVideoBlur = ({ enabled, intensity, frameRate = 30 }: UseVideoBlu
         stopProcessing();
 
         const canvas = canvasRef.current;
+
+        // Configuration canvas spécialement optimisée pour iOS
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         const ctx = canvas.getContext('2d', {
           alpha: false,
-          willReadFrequently: false // Optimisation pour iOS
+          willReadFrequently: false,
+          // Options iOS spécifiques
+          ...(isIOS && {
+            desynchronized: true, // Meilleure performance iOS
+          })
         });
 
         if (!ctx) {
@@ -87,12 +94,12 @@ export const useVideoBlur = ({ enabled, intensity, frameRate = 30 }: UseVideoBlu
 
         console.log('📺 Video element created, waiting for metadata...');
 
-        // Attendre que la vidéo soit prête avec un timeout plus long pour iOS
+        // Attendre que la vidéo soit prête avec timeout adapté pour iOS
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => {
-            console.error('❌ Video load timeout after 10s');
+            console.error('❌ Video load timeout after', isIOS ? '15s' : '10s');
             reject(new Error('Video load timeout'));
-          }, 10000); // 10s timeout pour iOS
+          }, isIOS ? 15000 : 10000); // 15s timeout pour iOS, 10s pour autres
 
           video.onloadedmetadata = () => {
             clearTimeout(timeout);
@@ -129,8 +136,13 @@ export const useVideoBlur = ({ enabled, intensity, frameRate = 30 }: UseVideoBlu
 
         // Fonction de rendu optimisée pour iOS
         let lastFrameTime = 0;
-        const frameInterval = 1000 / frameRate;
+        // iOS : frameRate plus conservateur pour les performances
+        const effectiveFrameRate = isIOS ? Math.min(frameRate, 24) : frameRate;
+        const frameInterval = 1000 / effectiveFrameRate;
         let frameCount = 0;
+
+        console.log(`🎬 Using frame rate: ${effectiveFrameRate}fps (iOS: ${isIOS})`);
+
 
         const renderFrame = (currentTime: number) => {
           if (!processingRef.current.video || !video) return;
@@ -144,8 +156,10 @@ export const useVideoBlur = ({ enabled, intensity, frameRate = 30 }: UseVideoBlu
                 ctx.drawImage(video, 0, 0, width, height);
 
                 frameCount++;
-                if (frameCount % 30 === 0) { // Log toutes les 30 frames
-                  console.log(`🎬 Frame ${frameCount} rendered with blur ${intensity}px`);
+                // iOS : Log moins fréquent pour les performances
+                const logInterval = isIOS ? 60 : 30; // Toutes les 60 frames sur iOS
+                if (frameCount % logInterval === 0) {
+                  console.log(`🎬 ${isIOS ? 'iOS' : ''} Frame ${frameCount} rendered with blur ${intensity}px`);
                 }
               }
               lastFrameTime = currentTime;
@@ -171,13 +185,16 @@ export const useVideoBlur = ({ enabled, intensity, frameRate = 30 }: UseVideoBlu
 
         processingRef.current.animationFrame = requestAnimationFrame(renderFrame);
 
-        // Créer le stream depuis le canvas avec des options iOS
+        // Créer le stream depuis le canvas avec options optimisées pour iOS
         let canvasStream: MediaStream;
         try {
-          canvasStream = canvas.captureStream(frameRate);
+          // iOS : utiliser le frameRate effectif (plus conservateur)
+          canvasStream = canvas.captureStream(effectiveFrameRate);
           console.log('✅ Canvas stream created:', {
             id: canvasStream.id,
-            videoTracks: canvasStream.getVideoTracks().length
+            videoTracks: canvasStream.getVideoTracks().length,
+            frameRate: effectiveFrameRate,
+            platform: isIOS ? 'iOS' : 'Other'
           });
         } catch (captureError) {
           console.error('❌ Canvas captureStream failed:', captureError);
