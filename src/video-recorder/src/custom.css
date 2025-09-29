@@ -1,0 +1,191 @@
+/* Styles pour le slider de blur */
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-track {
+  background: #e9d5ff;
+  height: 8px;
+  border-radius: 4px;
+  border: 1px solid #c4b5fd;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #9333ea;
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(147, 51, 234, 0.3);
+  transition: all 0.2s ease-in-out;
+}
+
+.slider::-webkit-slider-thumb:hover {
+  background: #7c3aed;
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(147, 51, 234, 0.4);
+}
+
+.slider::-moz-range-track {
+  background: #e9d5ff;
+  height: 8px;
+  border-radius: 4px;
+  border: 1px solid #c4b5fd;
+}
+
+.slider::-moz-range-thumb {
+  background: #9333ea;
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(147, 51, 234, 0.3);
+  transition: all 0.2s ease-in-out;
+}
+
+.slider::-moz-range-thumb:hover {
+  background: #7c3aed;
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(147, 51, 234, 0.4);
+}
+
+.slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.slider:disabled::-webkit-slider-thumb {
+  cursor: not-allowed;
+  transform: none;
+}
+
+.slider:disabled::-moz-range-thumb {
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Animation pour le bouton d'enregistrement */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.recording-pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Styles pour les transitions fluides */
+.smooth-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Gradient personnalisé pour les boutons */
+.btn-gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.btn-gradient:hover {
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+}
+
+/* Styles pour les cards avec glassmorphism effect */
+.glass-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Animation de loading */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Styles pour le preview du blur */
+.blur-preview {
+  transition: filter 0.2s ease-in-out;
+}
+
+/* Styles pour les tooltips */
+.tooltip {
+  position: relative;
+}
+
+.tooltip:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.tooltip:hover::before {
+  opacity: 1;
+}
+
+/* Responsive design améliorations */
+@media (max-width: 640px) {
+  .App {
+    padding: 1rem;
+  }
+  
+  .slider {
+    width: 80px !important;
+  }
+  
+  .flex-col-mobile {
+    flex-direction: column;
+  }
+  
+  .gap-mobile {
+    gap: 0.75rem;
+  }
+}
+
+/* Dark mode support (optionnel) */
+@media (prefers-color-scheme: dark) {
+  .dark-mode {
+    background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+    color: #f9fafb;
+  }
+  
+  .dark-mode .glass-card {
+    background: rgba(31, 41, 55, 0.95);
+    border-color: rgba(75, 85, 99, 0.3);
+  }
+}

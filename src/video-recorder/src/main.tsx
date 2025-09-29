@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
+import "./custom.css"; // Import des styles personnalisés
 import App from "./App.tsx";
 import {
   BubblePluginContext,
@@ -26,7 +27,7 @@ const init = (
       MY_GLOBAL[id] = createRoot(document.getElementById(id) as HTMLElement);
     }
     const root = MY_GLOBAL[id];
-    console.log("updating root");
+    console.log("Initializing video recorder plugin");
     root.render(
       <StrictMode>
         <App

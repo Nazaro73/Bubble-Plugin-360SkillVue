@@ -10,6 +10,8 @@ import {
   UploadButton,
 } from "./components/buttons";
 import { DeviceSelector, OptionsDisclosure } from "./components/options";
+import { BlurControls } from "./components/BlurControls";
+import { useVideoBlur } from "./hooks/useVideoBlur";
 import {
   BubblePluginContext,
   BubblePluginInstance,
@@ -27,6 +29,79 @@ interface AppProps {
 
 function App({ instance, properties }: AppProps) {
   const playerRef = React.useRef<VideoJsRecorderPlayer | null>(null);
+
+  const [isBlurEnabled, setIsBlurEnabled] = useState(false);
+  const [blurIntensity, setBlurIntensity] = useState(8);
+
+  // Détecter iOS avant son utilisation
+  const isIos = useIsIos();
+
+  // Utilisation du hook de floutage
+  const { canvasRef, processVideoStream, stopProcessing } = useVideoBlur({
+    enabled: isBlurEnabled,
+    intensity: blurIntensity,
+    frameRate: 30,
+  });
+
+  // Configuration de l'interception globale - seulement si le blur est utilisé
+  useEffect(() => {
+    // Ne pas intercepter du tout si le blur n'est pas activé
+    if (!isBlurEnabled) {
+      // S'assurer que l'original est restauré
+      if ((window as any).originalGetUserMedia) {
+        navigator.mediaDevices.getUserMedia = (window as any).originalGetUserMedia;
+        console.log('Blur disabled - restored original getUserMedia');
+      }
+      return;
+    }
+
+    // Sauvegarder l'original seulement quand nécessaire
+    if (!(window as any).originalGetUserMedia) {
+      (window as any).originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      console.log('Original getUserMedia saved for blur processing');
+    }
+
+    // Configurer l'interception avec le blur activé
+    console.log('🎥 Setting up blur interception with intensity:', blurIntensity);
+    navigator.mediaDevices.getUserMedia = async (constraints: MediaStreamConstraints) => {
+      console.log('🔍 INTERCEPTED getUserMedia call with blur enabled!', constraints);
+      try {
+        const originalStream = await (window as any).originalGetUserMedia(constraints);
+        console.log('✅ Got original stream:', {
+          id: originalStream.id,
+          videoTracks: originalStream.getVideoTracks().length,
+          audioTracks: originalStream.getAudioTracks().length
+        });
+
+        // Essayer le traitement avec blur
+        try {
+          console.log('🌀 Starting blur processing...');
+          const blurredStream = await processVideoStream(originalStream);
+          console.log('✅ Blur processing completed successfully:', {
+            id: blurredStream.id,
+            videoTracks: blurredStream.getVideoTracks().length,
+            audioTracks: blurredStream.getAudioTracks().length
+          });
+          return blurredStream;
+        } catch (blurError) {
+          console.error('❌ Blur processing failed, falling back to original stream:', blurError);
+          return originalStream;
+        }
+      } catch (error) {
+        console.error('❌ Error getting original stream:', error);
+        throw error; // Re-lancer l'erreur pour que VideoJS la gère
+      }
+    };
+
+    return () => {
+      // Cleanup: restaurer l'original si pas de blur
+      if (!isBlurEnabled && (window as any).originalGetUserMedia) {
+        navigator.mediaDevices.getUserMedia = (window as any).originalGetUserMedia;
+      }
+      stopProcessing();
+    };
+  }, [isBlurEnabled, blurIntensity, processVideoStream, stopProcessing]);
+
   const videoJsOptions = {
     controls: false,
     bigPlayButton: false,
@@ -35,17 +110,24 @@ function App({ instance, properties }: AppProps) {
     plugins: {
       record: {
         audio: true,
-        video: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-
+        video: isIos
+          ? {
+              width: { ideal: 1280, max: 1920 },
+              height: { ideal: 720, max: 1080 },
+              frameRate: { ideal: 24, max: 30 }
+            }
+          : {
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            },
         convertEngine: "ts-ebml",
-        videoMimeType: "video/webm;codecs=vp8",
+        videoMimeType: isIos
+          ? "video/mp4" // iOS préfère MP4
+          : "video/webm;codecs=vp8",
         debug: true,
-        frameWidth: 1280,
-        frameHeight: 720,
-        frameRate: 30,
+        frameWidth: isIos ? 1280 : 1280,
+        frameHeight: isIos ? 720 : 720,
+        frameRate: isIos ? 24 : 30,
         maxLength: 10 * 60, // 10 minutes
       },
     },
@@ -60,12 +142,52 @@ function App({ instance, properties }: AppProps) {
   const [recording, setRecording] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [canPlay, setCanPlay] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false); // État pour le redémarrage
+  
   const videoThing = useMemo<BubbleThing | null>(
     () => properties.videoThing || null,
     [properties.videoThing]
   );
 
-  const handlePlayerReady = (player: VideoJsRecorderPlayer) => {
+  // Fonction pour redémarrer la caméra
+  const restartCamera = useCallback(async () => {
+    if (!playerRef.current || recording) return;
+
+    console.log('Restarting camera with new blur settings...', { isBlurEnabled, blurIntensity });
+    setIsRestarting(true);
+
+    try {
+      // Arrêter l'enregistrement actuel s'il y en a un
+      if (playerRef.current.record().isRecording()) {
+        playerRef.current.record().stop();
+      }
+
+      // Arrêter le traitement de blur actuel
+      stopProcessing();
+
+      // Attendre que l'arrêt soit effectif et que l'interception soit mise à jour
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Forcer la re-detection des devices pour déclencher getUserMedia
+      console.log('Triggering device re-detection...');
+
+      // Redémarrer la caméra (cela devrait déclencher un nouvel appel à getUserMedia)
+      playerRef.current.record().getDevice();
+
+      console.log('Camera restarted successfully with blur settings:', { isBlurEnabled, blurIntensity });
+    } catch (error) {
+      console.error('Error restarting camera:', error);
+    } finally {
+      setIsRestarting(false);
+    }
+  }, [recording, stopProcessing, isBlurEnabled, blurIntensity]);
+
+  const handlePlayerReady = useCallback((player: VideoJsRecorderPlayer) => {
+    // S'assurer qu'on nettoie l'ancienne référence
+    if (playerRef.current && playerRef.current !== player) {
+      console.log('Cleaning up old player reference');
+    }
+    
     playerRef.current = player;
 
     // handle player events
@@ -76,6 +198,7 @@ function App({ instance, properties }: AppProps) {
       setPlayerReady(true);
       setCanPlay(false);
       setPlaying(false);
+      setIsRestarting(false); // Fin du redémarrage
     });
 
     player.on("enumerateReady", function () {
@@ -92,16 +215,10 @@ function App({ instance, properties }: AppProps) {
         option.value = deviceInfo.deviceId;
         if (deviceInfo.kind === "videoinput") {
           console.info("Found video input device: ", deviceInfo.label);
-          // option.text =
-          //   deviceInfo.label || "input device " + (inputSelector.length + 1);
-          // inputSelector.appendChild(option);
           videoDevicesList.push(deviceInfo);
         }
         if (deviceInfo.kind === "audioinput") {
           console.info("Found audio input device: ", deviceInfo.label);
-          // option.text =
-          //   deviceInfo.label || "input device " + (inputSelector.length + 1);
-          // inputSelector.appendChild(option);
           audioDevicesList.push(deviceInfo);
         }
       }
@@ -115,13 +232,6 @@ function App({ instance, properties }: AppProps) {
       setRecording(true);
       setCanPlay(false);
     });
-    // const toBase64 = (file: Blob): Promise<string> =>
-    //   new Promise((resolve, reject) => {
-    //     const reader = new FileReader();
-    //     reader.readAsDataURL(file);
-    //     reader.onload = () => resolve(reader.result as string);
-    //     reader.onerror = reject;
-    //   });
 
     player.on("play", () => {
       setPlaying(true);
@@ -133,16 +243,35 @@ function App({ instance, properties }: AppProps) {
     // error handling
     // @ts-expect-error bad typings
     player.on("error", (element, error) => {
-      console.warn(error);
+      console.warn("Player error:", error);
     });
 
     player.on("deviceError", () => {
       console.error("device error:", player.deviceErrorCode);
+      setIsRestarting(false); // Arrêter l'indicateur de redémarrage en cas d'erreur
+
+      // Message spécifique pour iOS Safari
+      if (isIos) {
+        console.warn('Camera access failed on iOS - this may be due to browser restrictions');
+        // Optionnel: revenir au mode upload automatiquement
+        // setMode("upload");
+      }
     });
-  };
+  }, []);
 
   const initPlayer = () => {
     if (!playerRef.current) return;
+
+    console.log('Initializing player with blur settings:', { isBlurEnabled, blurIntensity });
+    console.log('Device info:', { isIos, userAgent: navigator.userAgent });
+
+    // Vérification des APIs nécessaires
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.error('getUserMedia not supported');
+      alert('Camera access not supported on this device/browser');
+      return;
+    }
+
     setMode("record");
     playerRef.current.record().getDevice();
   };
@@ -151,11 +280,15 @@ function App({ instance, properties }: AppProps) {
     if (!playerRef.current) return;
 
     if (playerRef.current.record().isRecording()) {
+      console.log('Stopping recording...');
       playerRef.current.record().stop();
+      stopProcessing();
     } else {
+      console.log('Starting recording...');
       playerRef.current.record().start();
     }
   };
+
   const togglePlayingVideojs = () => {
     if (!playerRef.current) return;
 
@@ -170,23 +303,21 @@ function App({ instance, properties }: AppProps) {
 
   const handleVideoDeviceChange = (deviceId: string) => {
     if (!playerRef.current) return;
-    // setCanPlay(false);
 
     try {
       playerRef.current.record().setVideoInput(deviceId);
     } catch (e) {
-      console.error(e);
+      console.error('Error changing video device:', e);
     }
   };
 
   const handleAudioDeviceChange = (deviceId: string) => {
     if (!playerRef.current) return;
-    // setCanPlay(false);
 
     try {
       playerRef.current.record().setAudioInput(deviceId);
     } catch (e) {
-      console.error(e);
+      console.error('Error changing audio device:', e);
     }
   };
 
@@ -197,21 +328,16 @@ function App({ instance, properties }: AppProps) {
           file,
           (err, url) => {
             if (err) {
-              console.error(err);
+              console.error('Upload error:', err);
               return;
             }
             instance.publishState("videofile", url);
             instance.publishAutobinding(url);
-
-            // bubble.context.videoThing.set(
-            //   bubble.properties.videoThingFieldName,
-            //   url
-            // );
           },
           videoThing
         );
       } catch (error) {
-        console.error(error);
+        console.error('Upload error:', error);
       }
     },
     [instance, videoThing]
@@ -226,20 +352,21 @@ function App({ instance, properties }: AppProps) {
     setCanPlay(true);
     const blob = player.recordedData;
     if (!blob) return;
+    
+    stopProcessing();
     handleUpload(blob);
-  }, [playerRef, handleUpload]);
+  }, [playerRef, handleUpload, stopProcessing]);
 
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
 
-    // user completed recording and stream is available
     player.on("finishRecord", handleFinishRecordEvt);
 
     return () => {
       player.off("finishRecord", handleFinishRecordEvt);
     };
-  }, [playerRef, handleUpload, handleFinishRecordEvt]);
+  }, [playerRef, handleUpload, handleFinishRecordEvt, stopProcessing]);
 
   const [uploading, setUploading] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState<string | undefined>();
@@ -254,111 +381,245 @@ function App({ instance, properties }: AppProps) {
           (err, url) => {
             setUploading(false);
             if (err) {
-              console.error(err);
+              console.error('Manual upload error:', err);
               return;
             }
             instance.publishState("videofile", url);
             instance.publishAutobinding(url);
             setUploadedUrl(url);
-
-            // bubble.context.videoThing.set(
-            //   bubble.properties.videoThingFieldName,
-            //   url
-            // );
           },
           videoThing
         );
       } catch (error) {
-        console.error(error);
+        console.error('Manual upload error:', error);
+        setUploading(false);
       }
     },
     [instance, videoThing]
   );
 
-  const isIos = useIsIos();
+  // Handler pour les changements de paramètres de flou avec redémarrage automatique
+  const handleBlurToggle = useCallback((enabled: boolean) => {
+    if (recording) {
+      console.warn('Cannot change blur settings while recording');
+      return;
+    }
+    console.log('Blur toggle:', enabled);
+    setIsBlurEnabled(enabled);
+
+    // Redémarrer la caméra si elle est active pour appliquer le blur
+    if (mode === "record" && playerReady) {
+      console.log('Restarting camera to apply blur changes...');
+      setTimeout(() => {
+        restartCamera();
+      }, 200); // Délai plus long pour laisser le state et l'interception se mettre à jour
+    }
+  }, [recording, mode, playerReady, restartCamera]);
+
+  const handleBlurIntensityChange = useCallback((intensity: number) => {
+    if (recording) {
+      console.warn('Cannot change blur intensity while recording');
+      return;
+    }
+    console.log('Blur intensity change:', intensity);
+    setBlurIntensity(intensity);
+    
+    // Redémarrer la caméra si elle est active et que le blur est activé
+    if (mode === "record" && playerReady && isBlurEnabled) {
+      setTimeout(() => {
+        restartCamera();
+      }, 100); // Petit délai pour laisser le state se mettre à jour
+    }
+  }, [recording, mode, playerReady, isBlurEnabled, restartCamera]);
 
   return (
-    <div className="App flex flex-col w-full h-full p-2">
+    <div className="App flex flex-col w-full h-full p-4 bg-white rounded-lg shadow-lg">
+      {/* Canvas pour le traitement du flou - caché de l'utilisateur */}
+      <canvas
+        ref={canvasRef}
+        className="hidden"
+        width="1280"
+        height="720"
+      />
+
       {!mode && (
-        <div className="flex flex-col justify-center align-middle m-auto gap-2">
-          {/** Hide the direct recording option due to iOS limitations */}
-          {!isIos && (
-            <>
-              <OpenCameraButton onClick={initPlayer}></OpenCameraButton>
-              <span className="text-center">or</span>
-            </>
+        <div className="flex flex-col justify-center items-center m-auto gap-6 p-8 bg-white rounded-2xl ">
+
+          {isIos && (
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
+              <p className="text-sm text-blue-800 font-medium mb-1">📱 iOS/Safari User</p>
+              <p className="text-xs text-blue-600">
+                Camera recording now enabled! If you experience issues, use the upload option below.
+              </p>
+            </div>
           )}
-          <UploadButton
-            onUpload={handleManualUpload}
-            uploading={uploading}
-          ></UploadButton>
+
+          <OpenCameraButton onClick={initPlayer} />
+          <div className="flex items-center gap-4 my-2">
+            <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent flex-1"></div>
+            <span className="text-sm text-gray-500 px-4 font-medium">or</span>
+            <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent flex-1"></div>
+          </div>
+          <UploadButton onUpload={handleManualUpload} uploading={uploading} />
         </div>
       )}
+
       {mode === "upload" && (
-        <video
-          src={uploadedUrl}
-          controls
-          className="object-contain w-full h-full"
-          playsInline
-        />
+        <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Uploaded Video</h3>
+            <p className="text-sm text-gray-600">Your video is ready to use</p>
+          </div>
+          <video
+            src={uploadedUrl}
+            controls
+            className="object-contain w-full h-full rounded-xl shadow-sm"
+            playsInline
+          />
+        </div>
       )}
-      <VideoJSComponent
-        options={videoJsOptions}
-        onReady={handlePlayerReady}
-        className={mode === "record" && playerReady ? "" : "hidden"}
-      />
-      <div className="flex flex-col mt-4 gap-4">
-        <div className="flex flex-row w-full gap-4 justify-center">
+
+      <div className="relative bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+        {/* Indicateur de redémarrage */}
+        {isRestarting && (
+          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10">
+            <div className="bg-white rounded-lg p-4 flex items-center gap-3 shadow-xl">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="text-gray-700 font-medium">
+                Applying blur settings...
+              </span>
+            </div>
+          </div>
+        )}
+        
+        <VideoJSComponent
+          key={`videojs-${isBlurEnabled}-${blurIntensity}`} // Force re-render quand blur change
+          options={videoJsOptions}
+          onReady={handlePlayerReady}
+          className={mode === "record" && playerReady && !isRestarting ? "" : "hidden"}
+        />
+      </div>
+
+      <div className="flex flex-col mt-6 gap-6">
+        {/* Contrôles de floutage - placés AVANT l'initialisation */}
+        {mode === undefined && (
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-800 mb-1">Video Effects</h3>
+              <p className="text-sm text-gray-600">Configure blur effect before recording</p>
+            </div>
+            <BlurControls
+              isEnabled={isBlurEnabled}
+              onToggle={handleBlurToggle}
+              intensity={blurIntensity}
+              onIntensityChange={handleBlurIntensityChange}
+              disabled={false}
+            />
+          </div>
+        )}
+
+        {/* Contrôles principaux */}
+        <div className="flex flex-col gap-4">
           {playerReady && mode === "record" && (
-            <>
-              <Button onClick={() => setMode(undefined)}></Button>
+            <div className="flex flex-row w-full gap-4 justify-center items-center bg-white rounded-2xl p-6 shadow-xl border border-gray-100">
+              <Button onClick={() => setMode(undefined)} />
+              
               <RecordButton
                 onClick={toggleRecording}
                 isRecording={recording}
-              ></RecordButton>
-            </>
-          )}
-          {canPlay && mode === "record" && (
-            <PlayButton
-              onClick={togglePlayingVideojs}
-              isPlaying={playing}
-            ></PlayButton>
-          )}
-          {mode === "upload" && (
-            <div className="flex flex-row justify-center align-middle m-auto gap-4">
-              {!isIos && (
-                <>
-                  <OpenCameraButton onClick={initPlayer}></OpenCameraButton>
-                  <span className="text-center content-center">or</span>
-                </>
+              />
+              
+              {canPlay && (
+                <PlayButton
+                  onClick={togglePlayingVideojs}
+                  isPlaying={playing}
+                />
               )}
+            </div>
+          )}
+          
+          {/* Contrôles de floutage pendant l'enregistrement avec redémarrage automatique */}
+          {playerReady && mode === "record" && (
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-gray-800 mb-1">Video Effects</h3>
+                <p className="text-sm text-gray-600">
+                  {isRestarting 
+                    ? "Applying new settings..." 
+                    : "Camera will restart automatically when settings change"
+                  }
+                </p>
+                {recording && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    ⚠️ Blur settings cannot be changed during recording
+                  </p>
+                )}
+              </div>
+              <BlurControls
+                isEnabled={isBlurEnabled}
+                onToggle={handleBlurToggle}
+                intensity={blurIntensity}
+                onIntensityChange={handleBlurIntensityChange}
+                disabled={recording || isRestarting}
+              />
+            </div>
+          )}
+          
+          {mode === "upload" && (
+            <div className="flex flex-row justify-center items-center gap-4 bg-white rounded-2xl p-6 shadow-xl border border-gray-100">
+              <OpenCameraButton onClick={initPlayer} />
+              <div className="flex items-center gap-2">
+                <div className="h-px bg-gray-300 w-8"></div>
+                <span className="text-sm text-gray-500 font-medium">or</span>
+                <div className="h-px bg-gray-300 w-8"></div>
+              </div>
               <UploadButton
                 onUpload={handleManualUpload}
                 uploading={uploading}
-              ></UploadButton>
+              />
             </div>
           )}
         </div>
+
+        {/* Options avancées */}
         {mode === "record" && (
-          <OptionsDisclosure devices={[...videoDevices, ...audioDevices]}>
-            <div className="flex flex-row w-full gap-4 pt-2">
-              <div className="flex flex-col w-full">
-                <DeviceSelector
-                  deviceType="video"
-                  devices={videoDevices}
-                  onChange={handleVideoDeviceChange}
-                />
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
+            <OptionsDisclosure devices={[...videoDevices, ...audioDevices]}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                <div className="space-y-2">
+                  <DeviceSelector
+                    deviceType="video"
+                    devices={videoDevices}
+                    onChange={handleVideoDeviceChange}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <DeviceSelector
+                    deviceType="audio"
+                    devices={audioDevices}
+                    onChange={handleAudioDeviceChange}
+                  />
+                </div>
               </div>
-              <div className="flex flex-col w-full">
-                <DeviceSelector
-                  deviceType="audio"
-                  devices={audioDevices}
-                  onChange={handleAudioDeviceChange}
-                />
-              </div>
-            </div>
-          </OptionsDisclosure>
+            </OptionsDisclosure>
+          </div>
         )}
+      </div>
+
+      {/* Debug info étendu - Activé temporairement */}
+      <div className="mt-4 p-4 bg-gray-100 rounded-lg text-xs">
+        <h4 className="font-bold mb-2">Debug Info:</h4>
+        <p>Mode: {mode || 'none'}</p>
+        <p>Player Ready: {playerReady ? 'Yes' : 'No'}</p>
+        <p>Recording: {recording ? 'Yes' : 'No'}</p>
+        <p>Restarting: {isRestarting ? 'Yes' : 'No'}</p>
+        <p>Blur Enabled: {isBlurEnabled ? 'Yes' : 'No'}</p>
+        <p>Blur Intensity: {blurIntensity}px</p>
+        <p>Can Play: {canPlay ? 'Yes' : 'No'}</p>
+        <p>Is iOS: {isIos ? 'Yes' : 'No'}</p>
+        <p>Original getUserMedia saved: {(window as any).originalGetUserMedia ? 'Yes' : 'No'}</p>
+        <p>Current getUserMedia intercepted: {navigator.mediaDevices.getUserMedia !== (window as any).originalGetUserMedia ? 'Yes' : 'No'}</p>
+        <p>User Agent: {navigator.userAgent.substring(0, 50)}...</p>
       </div>
     </div>
   );
