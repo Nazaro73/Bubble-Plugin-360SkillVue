@@ -66,23 +66,45 @@ function App({ instance, properties }: AppProps) {
     console.log('🎥 Setting up blur interception with intensity:', blurIntensity);
     navigator.mediaDevices.getUserMedia = async (constraints: MediaStreamConstraints) => {
       console.log('🔍 INTERCEPTED getUserMedia call with blur enabled!', constraints);
+      console.log('📱 iOS device, using special handling');
+
       try {
         const originalStream = await (window as any).originalGetUserMedia(constraints);
         console.log('✅ Got original stream:', {
           id: originalStream.id,
           videoTracks: originalStream.getVideoTracks().length,
-          audioTracks: originalStream.getAudioTracks().length
+          audioTracks: originalStream.getAudioTracks().length,
+          videoSettings: originalStream.getVideoTracks()[0]?.getSettings()
         });
+
+        // Vérifier que le stream est valide avant traitement
+        if (originalStream.getVideoTracks().length === 0) {
+          console.warn('⚠️ No video tracks in original stream');
+          return originalStream;
+        }
 
         // Essayer le traitement avec blur
         try {
-          console.log('🌀 Starting blur processing...');
+          console.log('🌀 Starting blur processing on iOS...');
+
+          // Attendre un petit délai pour que iOS initialise le stream
+          await new Promise(resolve => setTimeout(resolve, 500));
+
           const blurredStream = await processVideoStream(originalStream);
+
           console.log('✅ Blur processing completed successfully:', {
             id: blurredStream.id,
             videoTracks: blurredStream.getVideoTracks().length,
-            audioTracks: blurredStream.getAudioTracks().length
+            audioTracks: blurredStream.getAudioTracks().length,
+            videoSettings: blurredStream.getVideoTracks()[0]?.getSettings()
           });
+
+          // Vérifier que le stream blurré est valide
+          if (blurredStream.getVideoTracks().length === 0) {
+            console.warn('⚠️ Blurred stream has no video tracks, falling back');
+            return originalStream;
+          }
+
           return blurredStream;
         } catch (blurError) {
           console.error('❌ Blur processing failed, falling back to original stream:', blurError);
@@ -124,7 +146,7 @@ function App({ instance, properties }: AppProps) {
             },
         convertEngine: isIos ? "MediaRecorder" : "ts-ebml", // MediaRecorder pour iOS
         videoMimeType: isIos
-          ? "video/mp4" // iOS préfère MP4
+          ? "video/mp4;codecs=h264" // iOS nécessite H.264 explicitement
           : "video/webm;codecs=vp8",
         debug: true,
         frameWidth: isIos ? 1280 : 1280,
@@ -135,6 +157,9 @@ function App({ instance, properties }: AppProps) {
         ...(isIos && {
           timeSlice: 1000, // Découper en tranches pour iOS
           videoBitsPerSecond: 2500000, // Limiter le bitrate
+          autoplay: true, // Forcer autoplay
+          controls: false, // Pas de contrôles natifs
+          muted: true, // Mute par défaut pour iOS
         })
       },
     },
@@ -289,6 +314,24 @@ function App({ instance, properties }: AppProps) {
       console.error('getUserMedia not supported');
       alert('Camera access not supported on this device/browser');
       return;
+    }
+
+    // Vérifier les codecs supportés sur iOS
+    if (isIos) {
+      const testCodecs = ['video/mp4;codecs=h264', 'video/mp4', 'video/webm;codecs=vp8'];
+      const supportedCodecs = testCodecs.filter(codec => {
+        try {
+          return MediaRecorder.isTypeSupported(codec);
+        } catch (e) {
+          return false;
+        }
+      });
+
+      console.log('iOS codec support:', supportedCodecs);
+
+      if (supportedCodecs.length === 0) {
+        console.warn('No supported video codecs found on iOS');
+      }
     }
 
     setMode("record");
@@ -511,13 +554,18 @@ function App({ instance, properties }: AppProps) {
 
   return (
     <div className="App flex flex-col w-full h-full p-4 bg-white rounded-lg shadow-lg">
-      {/* Canvas pour le traitement du flou - caché de l'utilisateur */}
+      {/* Canvas pour le traitement du flou - visible en debug mode pour iOS */}
       <canvas
         ref={canvasRef}
-        className="hidden"
+        className={isIos && isBlurEnabled ? "border border-red-500 max-w-sm" : "hidden"}
         width="1280"
         height="720"
       />
+      {isIos && isBlurEnabled && (
+        <p className="text-xs text-red-500 mb-2">
+          🔍 Debug: Canvas visible pour diagnostic iOS (sera caché en production)
+        </p>
+      )}
 
       {!mode && (
         <div className="flex flex-col justify-center items-center m-auto gap-6 p-8 bg-white rounded-2xl ">

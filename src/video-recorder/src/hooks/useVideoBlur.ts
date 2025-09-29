@@ -36,7 +36,11 @@ export const useVideoBlur = ({ enabled, intensity, frameRate = 30 }: UseVideoBlu
 
   const processVideoStream = useCallback(
     async (originalStream: MediaStream): Promise<MediaStream> => {
-      console.log('🌀 processVideoStream called:', { enabled, intensity });
+      console.log('🌀 processVideoStream called:', { enabled, intensity, frameRate });
+      console.log('📱 Device info:', {
+        userAgent: navigator.userAgent.substring(0, 50),
+        isIOS: /iPad|iPhone|iPod/.test(navigator.userAgent)
+      });
 
       if (!enabled || !canvasRef.current) {
         console.log('⚠️ Blur disabled or no canvas, returning original stream');
@@ -44,92 +48,165 @@ export const useVideoBlur = ({ enabled, intensity, frameRate = 30 }: UseVideoBlu
       }
 
       console.log('✅ Starting blur processing with canvas:', canvasRef.current);
+      console.log('📺 Original stream info:', {
+        id: originalStream.id,
+        videoTracks: originalStream.getVideoTracks().length,
+        audioTracks: originalStream.getAudioTracks().length,
+        videoTrack: originalStream.getVideoTracks()[0]?.getSettings()
+      });
 
       try {
         // Nettoyer le traitement précédent
         stopProcessing();
 
         const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d', { alpha: false });
-        
+        const ctx = canvas.getContext('2d', {
+          alpha: false,
+          willReadFrequently: false // Optimisation pour iOS
+        });
+
         if (!ctx) {
-          console.error('Cannot get canvas context');
+          console.error('❌ Cannot get canvas context');
           return originalStream;
         }
+
+        console.log('✅ Canvas context created successfully');
 
         // Créer l'élément vidéo
         const video = document.createElement('video');
         video.muted = true;
-        video.playsInline = true;
+        video.playsInline = true; // Crucial pour iOS
         video.autoplay = true;
         video.srcObject = originalStream;
-        
+
+        // iOS spécifique
+        video.setAttribute('webkit-playsinline', 'true');
+        video.setAttribute('playsinline', 'true');
+
         processingRef.current.video = video;
 
-        // Attendre que la vidéo soit prête
+        console.log('📺 Video element created, waiting for metadata...');
+
+        // Attendre que la vidéo soit prête avec un timeout plus long pour iOS
         await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error('Video load timeout')), 5000);
-          
+          const timeout = setTimeout(() => {
+            console.error('❌ Video load timeout after 10s');
+            reject(new Error('Video load timeout'));
+          }, 10000); // 10s timeout pour iOS
+
           video.onloadedmetadata = () => {
             clearTimeout(timeout);
-            console.log('Video loaded:', { width: video.videoWidth, height: video.videoHeight });
+            console.log('✅ Video metadata loaded:', {
+              width: video.videoWidth,
+              height: video.videoHeight,
+              duration: video.duration,
+              readyState: video.readyState
+            });
             resolve();
           };
-          
-          video.onerror = () => {
+
+          video.onerror = (error) => {
             clearTimeout(timeout);
+            console.error('❌ Video load error:', error);
             reject(new Error('Video load error'));
           };
+
+          // iOS peut avoir besoin d'un play() explicite
+          video.play().then(() => {
+            console.log('✅ Video play() successful');
+          }).catch((playError) => {
+            console.warn('⚠️ Video play() failed:', playError);
+          });
         });
 
-        // Configurer le canvas
+        // Configurer le canvas avec des dimensions appropriées
         const width = video.videoWidth || 1280;
         const height = video.videoHeight || 720;
         canvas.width = width;
         canvas.height = height;
 
-        // Fonction de rendu
+        console.log('🎨 Canvas configured:', { width, height });
+
+        // Fonction de rendu optimisée pour iOS
         let lastFrameTime = 0;
         const frameInterval = 1000 / frameRate;
+        let frameCount = 0;
 
         const renderFrame = (currentTime: number) => {
-          if (!processingRef.current.video) return;
+          if (!processingRef.current.video || !video) return;
 
           if (currentTime - lastFrameTime >= frameInterval) {
             try {
-              ctx.clearRect(0, 0, width, height);
-              ctx.filter = `blur(${intensity}px)`;
-              ctx.drawImage(video, 0, 0, width, height);
+              // Vérifier que la vidéo est toujours en lecture
+              if (video.readyState >= 2) { // HAVE_CURRENT_DATA
+                ctx.clearRect(0, 0, width, height);
+                ctx.filter = `blur(${intensity}px)`;
+                ctx.drawImage(video, 0, 0, width, height);
+
+                frameCount++;
+                if (frameCount % 30 === 0) { // Log toutes les 30 frames
+                  console.log(`🎬 Frame ${frameCount} rendered with blur ${intensity}px`);
+                }
+              }
               lastFrameTime = currentTime;
             } catch (err) {
-              console.error('Render error:', err);
+              console.error('❌ Render error:', err);
             }
           }
 
           if (processingRef.current.video && !video.paused && !video.ended) {
             processingRef.current.animationFrame = requestAnimationFrame(renderFrame);
+          } else {
+            console.log('⏹️ Video playback stopped:', { paused: video.paused, ended: video.ended });
           }
         };
 
-        // Démarrer le rendu
-        await video.play();
+        // Démarrer le rendu après s'assurer que la vidéo joue
+        try {
+          await video.play();
+          console.log('✅ Video playback started');
+        } catch (playError) {
+          console.warn('⚠️ Video play failed, continuing anyway:', playError);
+        }
+
         processingRef.current.animationFrame = requestAnimationFrame(renderFrame);
 
-        // Créer le stream depuis le canvas
-        const canvasStream = canvas.captureStream(frameRate);
-        
+        // Créer le stream depuis le canvas avec des options iOS
+        let canvasStream: MediaStream;
+        try {
+          canvasStream = canvas.captureStream(frameRate);
+          console.log('✅ Canvas stream created:', {
+            id: canvasStream.id,
+            videoTracks: canvasStream.getVideoTracks().length
+          });
+        } catch (captureError) {
+          console.error('❌ Canvas captureStream failed:', captureError);
+          return originalStream;
+        }
+
         // Ajouter l'audio original
         originalStream.getAudioTracks().forEach(track => {
-          canvasStream.addTrack(track.clone());
+          try {
+            const clonedTrack = track.clone();
+            canvasStream.addTrack(clonedTrack);
+            console.log('✅ Audio track added:', clonedTrack.id);
+          } catch (audioError) {
+            console.error('❌ Failed to add audio track:', audioError);
+          }
         });
 
         processingRef.current.stream = canvasStream;
-        
-        console.log('Blur processing setup complete');
+
+        console.log('🎉 Blur processing setup complete!', {
+          canvasStreamId: canvasStream.id,
+          videoTracks: canvasStream.getVideoTracks().length,
+          audioTracks: canvasStream.getAudioTracks().length
+        });
+
         return canvasStream;
 
       } catch (error) {
-        console.error('Error setting up blur:', error);
+        console.error('💥 Error setting up blur:', error);
         stopProcessing();
         return originalStream;
       }
