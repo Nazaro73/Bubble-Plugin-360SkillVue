@@ -10,8 +10,9 @@ import {
   UploadButton,
 } from "./components/buttons";
 import { DeviceSelector, OptionsDisclosure } from "./components/options";
-import { BlurControls } from "./components/BlurControls";
+import { BlurControls, VideoOverlay } from "./components";
 import { useVideoBlur } from "./hooks/useVideoBlur";
+import { useVideoOverlayBlur } from "./hooks/useVideoOverlayBlur";
 import {
   BubblePluginContext,
   BubblePluginInstance,
@@ -36,12 +37,22 @@ function App({ instance, properties }: AppProps) {
   // Détecter iOS avant son utilisation
   const isIos = useIsIos();
 
-  // Utilisation du hook de floutage
-  const { canvasRef, processVideoStream, stopProcessing } = useVideoBlur({
-    enabled: isBlurEnabled,
+  // Utilisation du hook de floutage - Canvas pour Android/Desktop, Overlay pour iOS
+  const canvasBlur = useVideoBlur({
+    enabled: isBlurEnabled && !isIos, // Canvas uniquement si pas iOS
     intensity: blurIntensity,
     frameRate: 30,
   });
+  
+  const overlayBlur = useVideoOverlayBlur({
+    enabled: isBlurEnabled && isIos, // Overlay uniquement sur iOS
+    intensity: blurIntensity,
+  });
+  
+  // Utiliser le hook approprié selon la plateforme
+  const { canvasRef, processVideoStream, stopProcessing } = isIos ? 
+    { canvasRef: null, ...overlayBlur } : 
+    canvasBlur;
 
   // Configuration de l'interception globale - seulement si le blur est utilisé
   useEffect(() => {
@@ -407,14 +418,16 @@ function App({ instance, properties }: AppProps) {
     console.log('Blur toggle:', enabled);
     setIsBlurEnabled(enabled);
 
-    // Redémarrer la caméra si elle est active pour appliquer le blur
-    if (mode === "record" && playerReady) {
-      console.log('Restarting camera to apply blur changes...');
+    // Redémarrer la caméra seulement si pas iOS (canvas mode)
+    if (mode === "record" && playerReady && !isIos) {
+      console.log('Restarting camera to apply blur changes (canvas mode)...');
       setTimeout(() => {
         restartCamera();
-      }, 200); // Délai plus long pour laisser le state et l'interception se mettre à jour
+      }, 200);
+    } else if (isIos) {
+      console.log('iOS detected - using CSS overlay, no restart needed');
     }
-  }, [recording, mode, playerReady, restartCamera]);
+  }, [recording, mode, playerReady, restartCamera, isIos]);
 
   const handleBlurIntensityChange = useCallback((intensity: number) => {
     if (recording) {
@@ -424,23 +437,27 @@ function App({ instance, properties }: AppProps) {
     console.log('Blur intensity change:', intensity);
     setBlurIntensity(intensity);
     
-    // Redémarrer la caméra si elle est active et que le blur est activé
-    if (mode === "record" && playerReady && isBlurEnabled) {
+    // Redémarrer la caméra seulement si pas iOS et que le blur est activé
+    if (mode === "record" && playerReady && isBlurEnabled && !isIos) {
       setTimeout(() => {
         restartCamera();
-      }, 100); // Petit délai pour laisser le state se mettre à jour
+      }, 100);
+    } else if (isIos) {
+      console.log('iOS detected - CSS overlay intensity updated, no restart needed');
     }
-  }, [recording, mode, playerReady, isBlurEnabled, restartCamera]);
+  }, [recording, mode, playerReady, isBlurEnabled, restartCamera, isIos]);
 
   return (
     <div className="App flex flex-col w-full h-full p-4 bg-white rounded-lg shadow-lg">
-      {/* Canvas pour le traitement du flou - caché de l'utilisateur */}
-      <canvas
-        ref={canvasRef}
-        className="hidden"
-        width="1280"
-        height="720"
-      />
+      {/* Canvas pour le traitement du flou - caché de l'utilisateur - uniquement si pas iOS */}
+      {!isIos && (
+        <canvas
+          ref={canvasRef}
+          className="hidden"
+          width="1280"
+          height="720"
+        />
+      )}
 
       {!mode && (
         <div className="flex flex-col justify-center items-center m-auto gap-6 p-8 bg-white rounded-2xl ">
@@ -482,7 +499,7 @@ function App({ instance, properties }: AppProps) {
       <div className="relative bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
         {/* Indicateur de redémarrage */}
         {isRestarting && (
-          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-10">
+          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20">
             <div className="bg-white rounded-lg p-4 flex items-center gap-3 shadow-xl">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
               <span className="text-gray-700 font-medium">
@@ -498,6 +515,14 @@ function App({ instance, properties }: AppProps) {
           onReady={handlePlayerReady}
           className={mode === "record" && playerReady && !isRestarting ? "" : "hidden"}
         />
+        
+        {/* Overlay de flou CSS pour iOS/Safari */}
+        {isIos && mode === "record" && playerReady && !isRestarting && (
+          <VideoOverlay 
+            isEnabled={isBlurEnabled}
+            intensity={blurIntensity}
+          />
+        )}
       </div>
 
       <div className="flex flex-col mt-6 gap-6">
@@ -546,7 +571,9 @@ function App({ instance, properties }: AppProps) {
                 <p className="text-sm text-gray-600">
                   {isRestarting 
                     ? "Applying new settings..." 
-                    : "Camera will restart automatically when settings change"
+                    : isIos 
+                      ? "Settings apply instantly with CSS overlay"
+                      : "Camera will restart automatically when settings change"
                   }
                 </p>
                 {recording && (
@@ -615,6 +642,7 @@ function App({ instance, properties }: AppProps) {
         <p>Restarting: {isRestarting ? 'Yes' : 'No'}</p>
         <p>Blur Enabled: {isBlurEnabled ? 'Yes' : 'No'}</p>
         <p>Blur Intensity: {blurIntensity}px</p>
+        <p>Blur Mode: {isIos ? 'CSS Overlay' : 'Canvas Processing'}</p>
         <p>Can Play: {canPlay ? 'Yes' : 'No'}</p>
         <p>Is iOS: {isIos ? 'Yes' : 'No'}</p>
         <p>Original getUserMedia saved: {(window as any).originalGetUserMedia ? 'Yes' : 'No'}</p>
