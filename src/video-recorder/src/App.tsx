@@ -10,9 +10,10 @@ import {
   UploadButton,
 } from "./components/buttons";
 import { DeviceSelector, OptionsDisclosure } from "./components/options";
-import { BlurControls, VideoOverlay } from "./components";
+import { BlurControls, VideoOverlay, UploadOverlay } from "./components";
 import { useVideoBlur } from "./hooks/useVideoBlur";
 import { useVideoOverlayBlur } from "./hooks/useVideoOverlayBlur";
+import { useUploadProgress } from "./hooks/useUploadProgress";
 import {
   BubblePluginContext,
   BubblePluginInstance,
@@ -154,11 +155,22 @@ function App({ instance, properties }: AppProps) {
   const [playing, setPlaying] = useState(false);
   const [canPlay, setCanPlay] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false); // État pour le redémarrage
-  
+  const [uploadedUrl, setUploadedUrl] = useState<string | undefined>();
+
   const videoThing = useMemo<BubbleThing | null>(
     () => properties.videoThing || null,
     [properties.videoThing]
   );
+
+  // Hook pour la progression d'upload
+  const {
+    progress: uploadProgress,
+    isUploading: uploading,
+    startUpload,
+    updateRealProgress,
+    finishUpload,
+    cancelUpload,
+  } = useUploadProgress();
 
   // Fonction pour redémarrer la caméra
   const restartCamera = useCallback(async () => {
@@ -334,24 +346,36 @@ function App({ instance, properties }: AppProps) {
 
   const handleUpload = useCallback(
     (file: Blob) => {
+      console.log('Starting upload for file:', { size: file.size, type: file.type });
+      startUpload(file.size);
+
       try {
         instance.uploadFile(
           file,
           (err, url) => {
             if (err) {
               console.error('Upload error:', err);
+              cancelUpload();
               return;
             }
+            console.log('Upload completed successfully:', url);
             instance.publishState("videofile", url);
             instance.publishAutobinding(url);
+            finishUpload();
           },
-          videoThing
+          videoThing,
+          (progress) => {
+            // Progress callback from Bubble: progress is a number between 0 and 100
+            console.log('Real progress from Bubble:', progress);
+            updateRealProgress(progress);
+          }
         );
       } catch (error) {
         console.error('Upload error:', error);
+        cancelUpload();
       }
     },
-    [instance, videoThing]
+    [instance, videoThing, startUpload, updateRealProgress, finishUpload, cancelUpload]
   );
 
   const handleFinishRecordEvt = useCallback(() => {
@@ -379,34 +403,40 @@ function App({ instance, properties }: AppProps) {
     };
   }, [playerRef, handleUpload, handleFinishRecordEvt, stopProcessing]);
 
-  const [uploading, setUploading] = useState(false);
-  const [uploadedUrl, setUploadedUrl] = useState<string | undefined>();
   const handleManualUpload = useCallback(
     (file: File) => {
-      setUploading(true);
+      console.log('Starting manual upload for file:', { size: file.size, type: file.type, name: file.name });
+      startUpload(file.size);
       setMode("upload");
 
       try {
         instance.uploadFile(
           file,
           (err, url) => {
-            setUploading(false);
             if (err) {
               console.error('Manual upload error:', err);
+              cancelUpload();
               return;
             }
+            console.log('Manual upload completed successfully:', url);
             instance.publishState("videofile", url);
             instance.publishAutobinding(url);
             setUploadedUrl(url);
+            finishUpload();
           },
-          videoThing
+          videoThing,
+          (progress) => {
+            // Progress callback from Bubble: progress is a number between 0 and 100
+            console.log('Real progress from Bubble:', progress);
+            updateRealProgress(progress);
+          }
         );
       } catch (error) {
         console.error('Manual upload error:', error);
-        setUploading(false);
+        cancelUpload();
       }
     },
-    [instance, videoThing]
+    [instance, videoThing, startUpload, updateRealProgress, finishUpload, cancelUpload]
   );
 
   // Handler pour les changements de paramètres de flou avec redémarrage automatique
@@ -449,6 +479,9 @@ function App({ instance, properties }: AppProps) {
 
   return (
     <div className="App flex flex-col w-full h-full p-4 bg-white rounded-lg shadow-lg">
+      {/* Upload Progress Overlay */}
+      <UploadOverlay isUploading={uploading} progress={uploadProgress} />
+
       {/* Canvas pour le traitement du flou - caché de l'utilisateur - uniquement si pas iOS */}
       {!isIos && (
         <canvas
