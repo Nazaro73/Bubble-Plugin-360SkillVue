@@ -32,11 +32,6 @@ export const useUploadProgress = () => {
     lastProgressTimeRef.current = Date.now();
     detectedSpeedRef.current = null;
 
-    console.log('📊 Starting upload with adaptive speed detection', {
-      fileSize: `${(fileSize / (1024 * 1024)).toFixed(2)} MB`,
-      fileSizeBytes: fileSize
-    });
-
     // Estimation initiale de la vitesse (conservatrice : 1 Mbps upload)
     let estimatedSpeed = 125 * 1024; // 1 Mbps = 125 KB/s = 125 * 1024 bytes/s
 
@@ -50,10 +45,6 @@ export const useUploadProgress = () => {
       // Si on a détecté une vraie vitesse, ajuster la durée estimée
       if (detectedSpeedRef.current && detectedSpeedRef.current > 0) {
         estimatedDuration = (fileSizeRef.current / detectedSpeedRef.current) * 1000;
-        console.log('🚀 Detected upload speed:', {
-          speedMbps: ((detectedSpeedRef.current * 8) / (1024 * 1024)).toFixed(2),
-          estimatedDurationSec: (estimatedDuration / 1000).toFixed(1)
-        });
       }
 
       // Si on a une vraie progression de Bubble, se synchroniser
@@ -108,14 +99,6 @@ export const useUploadProgress = () => {
           detectedSpeedRef.current = detectedSpeedRef.current * 0.7 + currentSpeed * 0.3;
         }
 
-        console.log('📈 Real-time speed update:', {
-          progress: `${realProgress.toFixed(1)}%`,
-          speedMbps: ((detectedSpeedRef.current * 8) / (1024 * 1024)).toFixed(2),
-          speedMBps: (detectedSpeedRef.current / (1024 * 1024)).toFixed(2),
-          bytesUploaded: `${(bytesUploaded / 1024).toFixed(0)} KB`,
-          timeDelta: `${timeDelta.toFixed(2)}s`
-        });
-
         lastRealProgressRef.current = realProgress;
         lastProgressTimeRef.current = now;
       }
@@ -126,8 +109,6 @@ export const useUploadProgress = () => {
       clearProgressInterval();
       simulatedProgressRef.current = 100;
       setProgress(100);
-
-      console.log('✅ Upload completed!');
 
       // Attendre un peu avant de masquer
       setTimeout(() => {

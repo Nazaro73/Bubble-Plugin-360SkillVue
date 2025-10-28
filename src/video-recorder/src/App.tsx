@@ -62,7 +62,6 @@ function App({ instance, properties }: AppProps) {
       // S'assurer que l'original est restauré
       if ((window as any).originalGetUserMedia) {
         navigator.mediaDevices.getUserMedia = (window as any).originalGetUserMedia;
-        console.log('Blur disabled - restored original getUserMedia');
       }
       return;
     }
@@ -70,37 +69,21 @@ function App({ instance, properties }: AppProps) {
     // Sauvegarder l'original seulement quand nécessaire
     if (!(window as any).originalGetUserMedia) {
       (window as any).originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-      console.log('Original getUserMedia saved for blur processing');
     }
 
     // Configurer l'interception avec le blur activé
-    console.log('🎥 Setting up blur interception with intensity:', blurIntensity);
     navigator.mediaDevices.getUserMedia = async (constraints: MediaStreamConstraints) => {
-      console.log('🔍 INTERCEPTED getUserMedia call with blur enabled!', constraints);
       try {
         const originalStream = await (window as any).originalGetUserMedia(constraints);
-        console.log('✅ Got original stream:', {
-          id: originalStream.id,
-          videoTracks: originalStream.getVideoTracks().length,
-          audioTracks: originalStream.getAudioTracks().length
-        });
 
         // Essayer le traitement avec blur
         try {
-          console.log('🌀 Starting blur processing...');
           const blurredStream = await processVideoStream(originalStream);
-          console.log('✅ Blur processing completed successfully:', {
-            id: blurredStream.id,
-            videoTracks: blurredStream.getVideoTracks().length,
-            audioTracks: blurredStream.getAudioTracks().length
-          });
           return blurredStream;
         } catch (blurError) {
-          console.error('❌ Blur processing failed, falling back to original stream:', blurError);
           return originalStream;
         }
       } catch (error) {
-        console.error('❌ Error getting original stream:', error);
         throw error; // Re-lancer l'erreur pour que VideoJS la gère
       }
     };
@@ -176,7 +159,6 @@ function App({ instance, properties }: AppProps) {
   const restartCamera = useCallback(async () => {
     if (!playerRef.current || recording) return;
 
-    console.log('Restarting camera with new blur settings...', { isBlurEnabled, blurIntensity });
     setIsRestarting(true);
 
     try {
@@ -192,14 +174,10 @@ function App({ instance, properties }: AppProps) {
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // Forcer la re-detection des devices pour déclencher getUserMedia
-      console.log('Triggering device re-detection...');
-
       // Redémarrer la caméra (cela devrait déclencher un nouvel appel à getUserMedia)
       playerRef.current.record().getDevice();
-
-      console.log('Camera restarted successfully with blur settings:', { isBlurEnabled, blurIntensity });
     } catch (error) {
-      console.error('Error restarting camera:', error);
+      // Error handling
     } finally {
       setIsRestarting(false);
     }
@@ -208,15 +186,14 @@ function App({ instance, properties }: AppProps) {
   const handlePlayerReady = useCallback((player: VideoJsRecorderPlayer) => {
     // S'assurer qu'on nettoie l'ancienne référence
     if (playerRef.current && playerRef.current !== player) {
-      console.log('Cleaning up old player reference');
+      // Cleaning up old player reference
     }
-    
+
     playerRef.current = player;
 
     // handle player events
     // device is ready
     player.on("deviceReady", () => {
-      console.log("device is ready!");
       player.record().enumerateDevices();
       setPlayerReady(true);
       setCanPlay(false);
@@ -237,11 +214,9 @@ function App({ instance, properties }: AppProps) {
         option = document.createElement("option");
         option.value = deviceInfo.deviceId;
         if (deviceInfo.kind === "videoinput") {
-          console.info("Found video input device: ", deviceInfo.label);
           videoDevicesList.push(deviceInfo);
         }
         if (deviceInfo.kind === "audioinput") {
-          console.info("Found audio input device: ", deviceInfo.label);
           audioDevicesList.push(deviceInfo);
         }
       }
@@ -251,7 +226,6 @@ function App({ instance, properties }: AppProps) {
 
     // user clicked the record button and started recording
     player.on("startRecord", () => {
-      console.log("started recording!");
       setRecording(true);
       setCanPlay(false);
     });
@@ -266,16 +240,15 @@ function App({ instance, properties }: AppProps) {
     // error handling
     // @ts-expect-error bad typings
     player.on("error", (element, error) => {
-      console.warn("Player error:", error);
+      // Player error
     });
 
     player.on("deviceError", () => {
-      console.error("device error:", player.deviceErrorCode);
       setIsRestarting(false); // Arrêter l'indicateur de redémarrage en cas d'erreur
 
       // Message spécifique pour iOS Safari
       if (isIos) {
-        console.warn('Camera access failed on iOS - this may be due to browser restrictions');
+        // Camera access failed on iOS
         // Optionnel: revenir au mode upload automatiquement
         // setMode("upload");
       }
@@ -285,12 +258,8 @@ function App({ instance, properties }: AppProps) {
   const initPlayer = () => {
     if (!playerRef.current) return;
 
-    console.log('Initializing player with blur settings:', { isBlurEnabled, blurIntensity });
-    console.log('Device info:', { isIos, userAgent: navigator.userAgent });
-
     // Vérification des APIs nécessaires
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      console.error('getUserMedia not supported');
       alert('Camera access not supported on this device/browser');
       return;
     }
@@ -303,11 +272,9 @@ function App({ instance, properties }: AppProps) {
     if (!playerRef.current) return;
 
     if (playerRef.current.record().isRecording()) {
-      console.log('Stopping recording...');
       playerRef.current.record().stop();
       stopProcessing();
     } else {
-      console.log('Starting recording...');
       playerRef.current.record().start();
     }
   };
@@ -330,7 +297,7 @@ function App({ instance, properties }: AppProps) {
     try {
       playerRef.current.record().setVideoInput(deviceId);
     } catch (e) {
-      console.error('Error changing video device:', e);
+      // Error changing video device
     }
   };
 
@@ -340,13 +307,12 @@ function App({ instance, properties }: AppProps) {
     try {
       playerRef.current.record().setAudioInput(deviceId);
     } catch (e) {
-      console.error('Error changing audio device:', e);
+      // Error changing audio device
     }
   };
 
   const handleUpload = useCallback(
     (file: Blob) => {
-      console.log('Starting upload for file:', { size: file.size, type: file.type });
       startUpload(file.size);
 
       try {
@@ -354,11 +320,9 @@ function App({ instance, properties }: AppProps) {
           file,
           (err, url) => {
             if (err) {
-              console.error('Upload error:', err);
               cancelUpload();
               return;
             }
-            console.log('Upload completed successfully:', url);
             instance.publishState("videofile", url);
             instance.publishAutobinding(url);
             finishUpload();
@@ -366,12 +330,10 @@ function App({ instance, properties }: AppProps) {
           videoThing,
           (progress) => {
             // Progress callback from Bubble: progress is a number between 0 and 100
-            console.log('Real progress from Bubble:', progress);
             updateRealProgress(progress);
           }
         );
       } catch (error) {
-        console.error('Upload error:', error);
         cancelUpload();
       }
     },
@@ -382,12 +344,11 @@ function App({ instance, properties }: AppProps) {
     const player = playerRef.current;
     if (!player) return;
 
-    console.log("finished recording: ", player.recordedData);
     setRecording(false);
     setCanPlay(true);
     const blob = player.recordedData;
     if (!blob) return;
-    
+
     stopProcessing();
     handleUpload(blob);
   }, [playerRef, handleUpload, stopProcessing]);
@@ -405,7 +366,6 @@ function App({ instance, properties }: AppProps) {
 
   const handleManualUpload = useCallback(
     (file: File) => {
-      console.log('Starting manual upload for file:', { size: file.size, type: file.type, name: file.name });
       startUpload(file.size);
       setMode("upload");
 
@@ -414,11 +374,9 @@ function App({ instance, properties }: AppProps) {
           file,
           (err, url) => {
             if (err) {
-              console.error('Manual upload error:', err);
               cancelUpload();
               return;
             }
-            console.log('Manual upload completed successfully:', url);
             instance.publishState("videofile", url);
             instance.publishAutobinding(url);
             setUploadedUrl(url);
@@ -427,12 +385,10 @@ function App({ instance, properties }: AppProps) {
           videoThing,
           (progress) => {
             // Progress callback from Bubble: progress is a number between 0 and 100
-            console.log('Real progress from Bubble:', progress);
             updateRealProgress(progress);
           }
         );
       } catch (error) {
-        console.error('Manual upload error:', error);
         cancelUpload();
       }
     },
@@ -442,38 +398,29 @@ function App({ instance, properties }: AppProps) {
   // Handler pour les changements de paramètres de flou avec redémarrage automatique
   const handleBlurToggle = useCallback((enabled: boolean) => {
     if (recording) {
-      console.warn('Cannot change blur settings while recording');
       return;
     }
-    console.log('Blur toggle:', enabled);
     setIsBlurEnabled(enabled);
 
     // Redémarrer la caméra seulement si pas iOS (canvas mode)
     if (mode === "record" && playerReady && !isIos) {
-      console.log('Restarting camera to apply blur changes (canvas mode)...');
       setTimeout(() => {
         restartCamera();
       }, 200);
-    } else if (isIos) {
-      console.log('iOS detected - using CSS overlay, no restart needed');
     }
   }, [recording, mode, playerReady, restartCamera, isIos]);
 
   const handleBlurIntensityChange = useCallback((intensity: number) => {
     if (recording) {
-      console.warn('Cannot change blur intensity while recording');
       return;
     }
-    console.log('Blur intensity change:', intensity);
     setBlurIntensity(intensity);
-    
+
     // Redémarrer la caméra seulement si pas iOS et que le blur est activé
     if (mode === "record" && playerReady && isBlurEnabled && !isIos) {
       setTimeout(() => {
         restartCamera();
       }, 100);
-    } else if (isIos) {
-      console.log('iOS detected - CSS overlay intensity updated, no restart needed');
     }
   }, [recording, mode, playerReady, isBlurEnabled, restartCamera, isIos]);
 
@@ -672,23 +619,6 @@ function App({ instance, properties }: AppProps) {
             </OptionsDisclosure>
           </div>
         )}
-      </div>
-
-      {/* Debug info étendu - Activé temporairement */}
-      <div className="mt-4 p-4 bg-gray-100 rounded-lg text-xs">
-        <h4 className="font-bold mb-2">Debug Info:</h4>
-        <p>Mode: {mode || 'none'}</p>
-        <p>Player Ready: {playerReady ? 'Yes' : 'No'}</p>
-        <p>Recording: {recording ? 'Yes' : 'No'}</p>
-        <p>Restarting: {isRestarting ? 'Yes' : 'No'}</p>
-        <p>Blur Enabled: {isBlurEnabled ? 'Yes' : 'No'}</p>
-        <p>Blur Intensity: {blurIntensity}px</p>
-        <p>Blur Mode: {isIos ? 'CSS Overlay' : 'Canvas Processing'}</p>
-        <p>Can Play: {canPlay ? 'Yes' : 'No'}</p>
-        <p>Is iOS: {isIos ? 'Yes' : 'No'}</p>
-        <p>Original getUserMedia saved: {(window as any).originalGetUserMedia ? 'Yes' : 'No'}</p>
-        <p>Current getUserMedia intercepted: {navigator.mediaDevices.getUserMedia !== (window as any).originalGetUserMedia ? 'Yes' : 'No'}</p>
-        <p>User Agent: {navigator.userAgent.substring(0, 50)}...</p>
       </div>
     </div>
   );

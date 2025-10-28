@@ -9,13 +9,5 @@ export default function useIsIos() {
                /iPad|iPhone|iPod/.test(userAgent) ||
                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPad Pro
 
-  console.log('Device detection:', {
-    osName: os.name,
-    userAgent: userAgent.substring(0, 100),
-    platform: navigator.platform,
-    maxTouchPoints: navigator.maxTouchPoints,
-    isIos
-  });
-
   return isIos;
 }

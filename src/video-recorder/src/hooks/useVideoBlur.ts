@@ -15,8 +15,6 @@ export const useVideoBlur = ({ enabled, intensity, frameRate = 30 }: UseVideoBlu
   }>({});
 
   const stopProcessing = useCallback(() => {
-    console.log('Stopping video blur processing');
-    
     if (processingRef.current.animationFrame) {
       cancelAnimationFrame(processingRef.current.animationFrame);
       processingRef.current.animationFrame = undefined;
@@ -36,14 +34,9 @@ export const useVideoBlur = ({ enabled, intensity, frameRate = 30 }: UseVideoBlu
 
   const processVideoStream = useCallback(
     async (originalStream: MediaStream): Promise<MediaStream> => {
-      console.log('🌀 processVideoStream called:', { enabled, intensity });
-
       if (!enabled || !canvasRef.current) {
-        console.log('⚠️ Blur disabled or no canvas, returning original stream');
         return originalStream;
       }
-
-      console.log('✅ Starting blur processing with canvas:', canvasRef.current);
 
       try {
         // Nettoyer le traitement précédent
@@ -51,9 +44,8 @@ export const useVideoBlur = ({ enabled, intensity, frameRate = 30 }: UseVideoBlu
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d', { alpha: false });
-        
+
         if (!ctx) {
-          console.error('Cannot get canvas context');
           return originalStream;
         }
 
@@ -69,13 +61,12 @@ export const useVideoBlur = ({ enabled, intensity, frameRate = 30 }: UseVideoBlu
         // Attendre que la vidéo soit prête
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => reject(new Error('Video load timeout')), 5000);
-          
+
           video.onloadedmetadata = () => {
             clearTimeout(timeout);
-            console.log('Video loaded:', { width: video.videoWidth, height: video.videoHeight });
             resolve();
           };
-          
+
           video.onerror = () => {
             clearTimeout(timeout);
             reject(new Error('Video load error'));
@@ -102,7 +93,7 @@ export const useVideoBlur = ({ enabled, intensity, frameRate = 30 }: UseVideoBlu
               ctx.drawImage(video, 0, 0, width, height);
               lastFrameTime = currentTime;
             } catch (err) {
-              console.error('Render error:', err);
+              // Render error
             }
           }
 
@@ -124,12 +115,10 @@ export const useVideoBlur = ({ enabled, intensity, frameRate = 30 }: UseVideoBlu
         });
 
         processingRef.current.stream = canvasStream;
-        
-        console.log('Blur processing setup complete');
+
         return canvasStream;
 
       } catch (error) {
-        console.error('Error setting up blur:', error);
         stopProcessing();
         return originalStream;
       }

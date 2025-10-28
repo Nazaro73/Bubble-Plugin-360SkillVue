@@ -27,7 +27,6 @@ const init = (
       MY_GLOBAL[id] = createRoot(document.getElementById(id) as HTMLElement);
     }
     const root = MY_GLOBAL[id];
-    console.log("Initializing video recorder plugin");
     root.render(
       <StrictMode>
         <App
