@@ -32,77 +32,34 @@ export const useUploadProgress = () => {
     lastProgressTimeRef.current = Date.now();
     detectedSpeedRef.current = null;
 
-    // Estimation initiale de la vitesse (conservatrice : 1 Mbps upload)
-    let estimatedSpeed = 125 * 1024; // 1 Mbps = 125 KB/s = 125 * 1024 bytes/s
-
-    // Calcul de la durée estimée basée sur la vitesse
-    let estimatedDuration = (fileSize / estimatedSpeed) * 1000; // en ms
-
-    // Simulation de progression fluide avec ajustement dynamique
+    // Simulation de progression fluide avec interpolation vers la progression réelle
     progressIntervalRef.current = setInterval(() => {
-      const elapsed = Date.now() - startTimeRef.current;
-
-      // Si on a détecté une vraie vitesse, ajuster la durée estimée
-      if (detectedSpeedRef.current && detectedSpeedRef.current > 0) {
-        estimatedDuration = (fileSizeRef.current / detectedSpeedRef.current) * 1000;
-      }
-
-      // Si on a une vraie progression de Bubble, se synchroniser
-      if (realProgressRef.current > simulatedProgressRef.current + 5) {
-        // Rattraper progressivement
+      // Si on a une vraie progression de Bubble, interpoler vers celle-ci
+      if (realProgressRef.current > simulatedProgressRef.current) {
+        // La vraie progression est en avance : rattraper progressivement
         const diff = realProgressRef.current - simulatedProgressRef.current;
-        simulatedProgressRef.current += Math.max(1, Math.floor(diff / 2));
-      } else if (realProgressRef.current > 0 && realProgressRef.current < simulatedProgressRef.current) {
-        // Si la vraie progression est en retard, ralentir
-        simulatedProgressRef.current = realProgressRef.current;
+        // Avancer de 20% de la différence à chaque frame (plus rapide)
+        simulatedProgressRef.current += Math.max(0.5, diff * 0.2);
+      } else if (realProgressRef.current > 0) {
+        // La vraie progression existe mais on est au même niveau ou en avance
+        // Avancer très lentement pour ne pas dépasser la vraie progression
+        simulatedProgressRef.current += 0.2;
       } else {
-        // Sinon, estimer la progression basée sur le temps écoulé et la vitesse détectée
-        const linearProgress = (elapsed / estimatedDuration) * 100;
-
-        // Courbe logarithmique pour paraître plus naturel
-        // On plafonne à 95% jusqu'à confirmation de fin d'upload
-        const logProgress = 100 * (1 - Math.exp(-linearProgress / 30));
-        const newProgress = Math.min(95, Math.max(simulatedProgressRef.current, logProgress));
-
-        // Avancer progressivement (jamais reculer)
-        simulatedProgressRef.current = Math.max(simulatedProgressRef.current, newProgress);
+        // Au début, avant la première mise à jour, progresser lentement
+        simulatedProgressRef.current += 0.3;
       }
 
-      setProgress(Math.round(simulatedProgressRef.current));
-    }, 100); // Mise à jour toutes les 100ms pour plus de fluidité
+      // IMPORTANT: Ne JAMAIS reculer, toujours limiter à 100%
+      simulatedProgressRef.current = Math.min(100, Math.max(simulatedProgressRef.current, 0));
+
+      setProgress(simulatedProgressRef.current);
+    }, 50); // Mise à jour toutes les 50ms pour une animation très fluide
   }, []);
 
-  // Callback pour la vraie progression de Bubble avec détection de vitesse
+  // Callback pour la vraie progression de Bubble
   const updateRealProgress = useCallback((realProgress: number) => {
-    const now = Date.now();
-    const previousProgress = lastRealProgressRef.current;
-    const previousTime = lastProgressTimeRef.current;
-
+    // Mettre à jour la progression réelle - l'interpolation se fera dans l'intervalle
     realProgressRef.current = Math.min(realProgress, 100);
-
-    // Détecter la vitesse d'upload basée sur la progression réelle
-    if (realProgress > previousProgress && realProgress > 5) {
-      const progressDelta = realProgress - previousProgress; // en pourcentage
-      const timeDelta = (now - previousTime) / 1000; // en secondes
-
-      if (timeDelta > 0.1) { // Éviter les divisions par 0 ou trop petites
-        // Calculer les bytes uploadés
-        const bytesUploaded = (progressDelta / 100) * fileSizeRef.current;
-        // Calculer la vitesse en bytes/sec
-        const currentSpeed = bytesUploaded / timeDelta;
-
-        // Moyenne mobile pour lisser la vitesse détectée
-        if (detectedSpeedRef.current === null) {
-          detectedSpeedRef.current = currentSpeed;
-        } else {
-          // Moyenne pondérée : 70% ancienne vitesse + 30% nouvelle
-          detectedSpeedRef.current = detectedSpeedRef.current * 0.7 + currentSpeed * 0.3;
-        }
-
-        lastRealProgressRef.current = realProgress;
-        lastProgressTimeRef.current = now;
-      }
-    }
 
     // Si la vraie progression atteint 100%, on finalise
     if (realProgress >= 100) {
@@ -114,7 +71,6 @@ export const useUploadProgress = () => {
       setTimeout(() => {
         setIsUploading(false);
         setProgress(0);
-        detectedSpeedRef.current = null;
       }, 1500);
     }
   }, [clearProgressInterval]);

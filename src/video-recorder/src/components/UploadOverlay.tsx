@@ -44,25 +44,23 @@ export const UploadOverlay: React.FC<UploadOverlayProps> = ({ isUploading, progr
           <div className="w-full">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm font-medium text-gray-700">Progression</span>
-              <span className="text-sm font-bold text-blue-600">{Math.round(progress)}%</span>
+              <span className="text-sm font-bold text-blue-600">{Math.floor(progress)}%</span>
             </div>
 
             <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner">
               <div
-                className={`h-full rounded-full transition-all duration-300 ease-out ${
+                className={`h-full rounded-full ${
                   isComplete
                     ? 'bg-gradient-to-r from-green-500 to-green-600'
                     : 'bg-gradient-to-r from-blue-500 to-blue-600'
                 }`}
                 style={{ width: `${Math.min(progress, 100)}%` }}
-              >
-                <div className="h-full w-full bg-white opacity-20 animate-pulse"></div>
-              </div>
+              />
             </div>
           </div>
 
           {/* Loading animation for indeterminate progress */}
-          {progress === 0 && (
+          {progress < 0.5 && (
             <div className="flex gap-2">
               <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
               <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
