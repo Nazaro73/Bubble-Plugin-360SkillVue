@@ -504,12 +504,16 @@ function App({ instance, properties }: AppProps) {
             </div>
           )}
 
-          <OpenCameraButton onClick={initPlayer} />
-          <div className="flex items-center gap-4 my-2">
-            <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent flex-1"></div>
-            <span className="text-sm text-gray-500 px-4 font-medium">or</span>
-            <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent flex-1"></div>
-          </div>
+          {!isIos && (
+            <>
+              <OpenCameraButton onClick={initPlayer} />
+              <div className="flex items-center gap-4 my-2">
+                <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent flex-1"></div>
+                <span className="text-sm text-gray-500 px-4 font-medium">or</span>
+                <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent flex-1"></div>
+              </div>
+            </>
+          )}
           <UploadButton onUpload={handleManualUpload} uploading={uploading} />
         </div>
       )}
@@ -627,12 +631,16 @@ function App({ instance, properties }: AppProps) {
           
           {mode === "upload" && (
             <div className="flex flex-row justify-center items-center gap-4 bg-white rounded-2xl p-6 shadow-xl border border-gray-100">
-              <OpenCameraButton onClick={initPlayer} />
-              <div className="flex items-center gap-2">
-                <div className="h-px bg-gray-300 w-8"></div>
-                <span className="text-sm text-gray-500 font-medium">or</span>
-                <div className="h-px bg-gray-300 w-8"></div>
-              </div>
+              {!isIos && (
+                <>
+                  <OpenCameraButton onClick={initPlayer} />
+                  <div className="flex items-center gap-2">
+                    <div className="h-px bg-gray-300 w-8"></div>
+                    <span className="text-sm text-gray-500 font-medium">or</span>
+                    <div className="h-px bg-gray-300 w-8"></div>
+                  </div>
+                </>
+              )}
               <UploadButton
                 onUpload={handleManualUpload}
                 uploading={uploading}
